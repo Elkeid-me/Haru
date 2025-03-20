@@ -7,3 +7,26 @@
    cargo build -r
    ```
    以构建优化的版本。
+
+## 使用
+
+```bash
+haru [OPTIONS] <INPUT>
+```
+
+其中：
+
+### `<INPUT>`
+
+一个 LLVM IR 文件。
+
+### `[OPTIONS]`
+
+- `-b`，`--bc`，指定输入为二进制格式的 LLVM IR。
+- `-l`，`--ll`，指定输入为文本格式的 LLVM IR。
+
+以上两个参数至多指定一个。未指定任何一个时，将根据 `<INPUT>` 文件扩展名猜测。
+
+- `-o`，`--output <OUTPUT>`，指定输出文件名，不指定时将输出到 `1.c`。
+- `-h`，`--help`，打印帮助。
+- `-V`，`-version`，显示 Haru 版本。
