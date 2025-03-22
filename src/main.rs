@@ -14,6 +14,9 @@ pub struct Args {
     /// 指定输出文件名，不指定时将输出到 `1.c`。
     #[arg(short, long)]
     output: Option<std::path::PathBuf>,
+    /// 指定函数名，不指定时为 `op`。
+    #[arg(short, long, default_value_t = String::from_str("op").unwrap())]
+    func: String,
     input: std::path::PathBuf,
 }
 
@@ -30,7 +33,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             _ => panic!("未知的扩展名，猜不出来喵"),
         },
     };
-    let op_function = match module.get_func_by_name("op") {
+
+    let func_name = args.func.as_str();
+
+    let op_function = match module.get_func_by_name(func_name) {
         Some(func) => func,
         None => panic!("没有找到名为 `op` 的函数"),
     };
