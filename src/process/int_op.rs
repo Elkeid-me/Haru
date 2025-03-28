@@ -29,7 +29,7 @@ macro_rules! com_int_op_check {
                             (33..=64, 33..=64) => {
                                 vec![
                                     $op_64 { ret: ret_handler, arg_1: l_handler, arg_2: r_handler },
-                                    ExtactI32 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
+                                    ExtactI64 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
                                 ]
                             }
                             (0..=32, 33..=64) => {
@@ -71,7 +71,7 @@ macro_rules! com_int_op_check {
                             (33..=64, 33..=64) => {
                                 vec![
                                     $op_64_imm { ret: ret_handler, arg_1: v_handler, arg_2: *value as i64 },
-                                    ExtactI32 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
+                                    ExtactI64 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
                                 ]
                             }
                             (0..=32, 33..=64) => {

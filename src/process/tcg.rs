@@ -85,7 +85,7 @@ impl Display for Tcg {
 
 
             Self::AddiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_addi_i64(val_{ret}, val_{arg_1}, {arg_2});"),
-            Self::AddI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_movi_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
+            Self::AddI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_add_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
 
             Self::SubfiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_subfi_i64(val_{ret}, {arg_1}, val_{arg_2});"),
             Self::SubiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_subi_i64(val_{ret}, val_{arg_1}, {arg_2});"),

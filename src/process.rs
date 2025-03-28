@@ -72,7 +72,7 @@ impl<'a> Processor<'a> {
                 FDiv(fdiv) => todo!(),
                 FRem(frem) => todo!(),
                 FNeg(fneg) => todo!(),
-                _ => todo!(),
+                _ => vec![],
             })
             .flatten()
             .collect::<Vec<_>>();
