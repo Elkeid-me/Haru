@@ -1,13 +1,153 @@
 use super::Processor;
 use super::tcg::Tcg::{self, *};
 use llvm_ir::Constant;
-use llvm_ir::instruction::{Add, And, Mul, Or, Xor};
+use llvm_ir::instruction::{Add, And, Mul, Or, Sub, Xor};
 use llvm_ir::types::Types;
 use llvm_ir::{Operand::*, Type::*, instruction::BinaryOp, instruction::HasResult};
 
-/// 可交换的整数运算符
+/// 面善又友善的奇妙宏
+macro_rules! two_operand {
+    ($processor: expr, $l_name: expr, $r_name: expr, $l_ty: expr, $r_ty: expr, $ret_handler: expr, $ret_bits: expr, $op_32: ident, $op_64: ident) => {{
+        let l_handler = *$processor.symbol_table_2.borrow().get($l_name).unwrap();
+        let r_handler = *$processor.symbol_table_2.borrow().get($r_name).unwrap();
+        match ($l_ty.as_ref(), $r_ty.as_ref()) {
+            (IntegerType { bits: l_bits }, IntegerType { bits: r_bits }) if l_bits == r_bits => match (l_bits, $ret_bits) {
+                (0..=32, 0..32) => vec![
+                    $op_32 { ret: $ret_handler, arg_1: l_handler, arg_2: r_handler },
+                    ExtactI32 { ret: $ret_handler, arg: $ret_handler, pos: 0, len: $ret_bits },
+                ],
+                (0..=32, 32) => vec![$op_32 { ret: $ret_handler, arg_1: l_handler, arg_2: r_handler }],
+                (0..=32, 33..64) => {
+                    let tmp_handler = $processor.counter.borrow_mut().get();
+                    $processor.symbol_table.borrow_mut().insert(tmp_handler, Types::i32(&$processor.module.types));
+                    vec![
+                        $op_32 { ret: tmp_handler, arg_1: l_handler, arg_2: r_handler },
+                        ExtI32I64 { ret: $ret_handler, arg: tmp_handler },
+                        ExtactI64 { ret: $ret_handler, arg: $ret_handler, pos: 0, len: $ret_bits },
+                    ]
+                }
+                (0..=32, 64) => {
+                    let tmp_handler = $processor.counter.borrow_mut().get();
+                    $processor.symbol_table.borrow_mut().insert(tmp_handler, Types::i32(&$processor.module.types));
+                    vec![
+                        $op_32 { ret: tmp_handler, arg_1: l_handler, arg_2: r_handler },
+                        ExtI32I64 { ret: $ret_handler, arg: tmp_handler },
+                    ]
+                }
+                (33..=64, 0..32) => {
+                    let tmp_handler = $processor.counter.borrow_mut().get();
+                    $processor.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&$processor.module.types));
+                    vec![
+                        $op_64 { ret: tmp_handler, arg_1: l_handler, arg_2: r_handler },
+                        ExtrlI64I32 { ret: $ret_handler, arg: tmp_handler },
+                        ExtactI32 { ret: $ret_handler, arg: $ret_handler, pos: 0, len: $ret_bits },
+                    ]
+                }
+                (33..=64, 32) => {
+                    let tmp_handler = $processor.counter.borrow_mut().get();
+                    $processor.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&$processor.module.types));
+                    vec![
+                        $op_64 { ret: tmp_handler, arg_1: l_handler, arg_2: r_handler },
+                        ExtrlI64I32 { ret: $ret_handler, arg: tmp_handler },
+                    ]
+                }
+                (33..=64, 33..64) => vec![
+                    $op_64 { ret: $ret_handler, arg_1: l_handler, arg_2: r_handler },
+                    ExtactI64 { ret: $ret_handler, arg: $ret_handler, pos: 0, len: $ret_bits },
+                ],
+                (33..=64, 64) => vec![$op_64 { ret: $ret_handler, arg_1: l_handler, arg_2: r_handler }],
+                _ => todo!(),
+            },
+            _ => unreachable!(),
+        }
+    }};
+}
+macro_rules! value_const {
+    ($processor: expr, $v_name: expr, $v_ty: expr, $constant: expr, $ret_handler: expr, $ret_bits: expr, $op_32_imm: ident, $op_64_imm: ident) => {{
+        let v_handler = *$processor.symbol_table_2.borrow().get($v_name).unwrap();
+        match ($v_ty.as_ref(), $constant.as_ref()) {
+            (IntegerType { bits: v_bits }, Constant::Int { bits: c_bits, value }) if v_bits == c_bits => {
+                match (v_bits, $ret_bits) {
+                    (0..=32, 0..32) => vec![
+                        $op_32_imm { ret: $ret_handler, arg_1: v_handler, arg_2: *value as i32 },
+                        ExtactI32 { ret: $ret_handler, arg: $ret_handler, pos: 0, len: $ret_bits },
+                    ],
+                    (0..=32, 32) => vec![$op_32_imm { ret: $ret_handler, arg_1: v_handler, arg_2: *value as i32 }],
+                    (33..=64, 33..64) => vec![
+                        $op_64_imm { ret: $ret_handler, arg_1: v_handler, arg_2: *value as i64 },
+                        ExtactI64 { ret: $ret_handler, arg: $ret_handler, pos: 0, len: $ret_bits },
+                    ],
+                    (33..=64, 64) => vec![$op_64_imm { ret: $ret_handler, arg_1: v_handler, arg_2: *value as i64 }],
+                    (0..=32, 33..64) => {
+                        let tmp_handler = $processor.counter.borrow_mut().get();
+                        $processor.symbol_table.borrow_mut().insert(tmp_handler, Types::i32(&$processor.module.types));
+                        vec![
+                            $op_32_imm { ret: tmp_handler, arg_1: v_handler, arg_2: *value as i32 },
+                            ExtI32I64 { ret: $ret_handler, arg: tmp_handler },
+                            ExtactI64 { ret: $ret_handler, arg: $ret_handler, pos: 0, len: $ret_bits },
+                        ]
+                    }
+                    (0..=32, 64) => {
+                        let tmp_handler = $processor.counter.borrow_mut().get();
+                        $processor.symbol_table.borrow_mut().insert(tmp_handler, Types::i32(&$processor.module.types));
+                        vec![
+                            $op_32_imm { ret: tmp_handler, arg_1: v_handler, arg_2: *value as i32 },
+                            ExtI32I64 { ret: $ret_handler, arg: tmp_handler },
+                        ]
+                    }
+                    (33..=64, 0..32) => {
+                        let tmp_handler = $processor.counter.borrow_mut().get();
+                        $processor.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&$processor.module.types));
+                        vec![
+                            $op_64_imm { ret: tmp_handler, arg_1: v_handler, arg_2: *value as i64 },
+                            ExtrlI64I32 { ret: $ret_handler, arg: tmp_handler },
+                            ExtactI32 { ret: $ret_handler, arg: $ret_handler, pos: 0, len: $ret_bits },
+                        ]
+                    }
+                    (33..=64, 32) => {
+                        let tmp_handler = $processor.counter.borrow_mut().get();
+                        $processor.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&$processor.module.types));
+                        vec![
+                            $op_64_imm { ret: tmp_handler, arg_1: v_handler, arg_2: *value as i64 },
+                            ExtrlI64I32 { ret: $ret_handler, arg: tmp_handler },
+                        ]
+                    }
+                    _ => todo!(),
+                }
+            }
+            _ => unreachable!(),
+        }
+    }};
+}
+
+macro_rules! two_const {
+    ($op: tt, $l_constant: expr, $r_constant: expr, $ret_handler: expr, $ret_bits: expr) => {{
+        match ($l_constant.as_ref(), $r_constant.as_ref()) {
+            (Constant::Int { bits: l_bits, value: l_value }, Constant::Int { bits: r_bits, value: r_value })
+                if *l_bits == *r_bits =>
+            {
+                match $ret_bits {
+                    0..32 => vec![
+                        MoviI32 { ret: $ret_handler, arg: (l_value $op r_value) as i32 },
+                        ExtactI32 { ret: $ret_handler, arg: $ret_handler, pos: 0, len: $ret_bits },
+                    ],
+                    32 => vec![MoviI32 { ret: $ret_handler, arg: (l_value $op r_value) as i32 }],
+                    33..64 => vec![
+                        MoviI64 { ret: $ret_handler, arg: (l_value $op r_value) as i64 },
+                        ExtactI64 { ret: $ret_handler, arg: $ret_handler, pos: 0, len: $ret_bits },
+                    ],
+                    64 => vec![MoviI64 { ret: $ret_handler, arg: (l_value $op r_value) as i64 }],
+                    _ => todo!(),
+                }
+            }
+            _ => unreachable!(),
+        }
+    }};
+}
+
+/// 可交换的整数算数
 macro_rules! com_int_op_check {
-    ($processor: expr, $inst: expr, $op_32: ident, $op_32_imm: ident, $op_64: ident, $op_64_imm: ident) => {{
+    ($processor: expr, $inst: expr, $op: tt, $op_32: ident, $op_32_imm: ident, $op_64: ident, $op_64_imm: ident) => {{
         let ret_handler = *$processor.symbol_table_2.borrow().get($inst.get_result()).unwrap();
         let ret_bits = match *$processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
             IntegerType { bits } => bits,
@@ -15,109 +155,41 @@ macro_rules! com_int_op_check {
         };
         match ($inst.get_operand0(), $inst.get_operand1()) {
             (LocalOperand { name: l_name, ty: l_ty }, LocalOperand { name: r_name, ty: r_ty }) => {
-                let l_handler = *$processor.symbol_table_2.borrow().get(l_name).unwrap();
-                let r_handler = *$processor.symbol_table_2.borrow().get(r_name).unwrap();
-                match (l_ty.as_ref(), r_ty.as_ref()) {
-                    (IntegerType { bits: l_bits }, IntegerType { bits: r_bits }) if l_bits == r_bits => {
-                        match (l_bits, ret_bits) {
-                            (0..=32, 0..=32) => {
-                                vec![
-                                    $op_32 { ret: ret_handler, arg_1: l_handler, arg_2: r_handler },
-                                    ExtactI32 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
-                                ]
-                            }
-                            (33..=64, 33..=64) => {
-                                vec![
-                                    $op_64 { ret: ret_handler, arg_1: l_handler, arg_2: r_handler },
-                                    ExtactI64 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
-                                ]
-                            }
-                            (0..=32, 33..=64) => {
-                                let tmp_handler = $processor.counter.borrow_mut().get();
-                                $processor.symbol_table.borrow_mut().insert(tmp_handler, Types::i32(&$processor.module.types));
-                                vec![
-                                    $op_32 { ret: tmp_handler, arg_1: l_handler, arg_2: r_handler },
-                                    ExtI32I64 { ret: ret_handler, arg: tmp_handler },
-                                    ExtactI64 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
-                                ]
-                            }
-                            (33..=64, 0..=32) => {
-                                let tmp_handler = $processor.counter.borrow_mut().get();
-                                $processor.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&$processor.module.types));
-                                vec![
-                                    $op_64 { ret: tmp_handler, arg_1: l_handler, arg_2: r_handler },
-                                    ExtrlI64I32 { ret: ret_handler, arg: tmp_handler },
-                                    ExtactI32 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
-                                ]
-                            }
-                            _ => todo!(),
-                        }
-                    }
-                    _ => unreachable!(),
-                }
+                two_operand!($processor, l_name, r_name, l_ty, r_ty, ret_handler, ret_bits, $op_32, $op_64)
             }
             (LocalOperand { name: v_name, ty: v_ty }, ConstantOperand(constant))
             | (ConstantOperand(constant), LocalOperand { name: v_name, ty: v_ty }) => {
-                let v_handler = *$processor.symbol_table_2.borrow().get(v_name).unwrap();
-                match (v_ty.as_ref(), constant.as_ref()) {
-                    (IntegerType { bits: v_bits }, Constant::Int { bits: c_bits, value }) if v_bits == c_bits => {
-                        match (v_bits, ret_bits) {
-                            (0..=32, 0..=32) => {
-                                vec![
-                                    $op_32_imm { ret: ret_handler, arg_1: v_handler, arg_2: *value as i32 },
-                                    ExtactI32 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
-                                ]
-                            }
-                            (33..=64, 33..=64) => {
-                                vec![
-                                    $op_64_imm { ret: ret_handler, arg_1: v_handler, arg_2: *value as i64 },
-                                    ExtactI64 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
-                                ]
-                            }
-                            (0..=32, 33..=64) => {
-                                let tmp_handler = $processor.counter.borrow_mut().get();
-                                $processor.symbol_table.borrow_mut().insert(tmp_handler, Types::i32(&$processor.module.types));
-                                vec![
-                                    $op_32_imm { ret: tmp_handler, arg_1: v_handler, arg_2: *value as i32 },
-                                    ExtI32I64 { ret: ret_handler, arg: tmp_handler },
-                                    ExtactI64 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
-                                ]
-                            }
-                            (33..=64, 0..=32) => {
-                                let tmp_handler = $processor.counter.borrow_mut().get();
-                                $processor.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&$processor.module.types));
-                                vec![
-                                    $op_64_imm { ret: tmp_handler, arg_1: v_handler, arg_2: *value as i64 },
-                                    ExtrlI64I32 { ret: ret_handler, arg: tmp_handler },
-                                    ExtactI32 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
-                                ]
-                            }
-                            _ => todo!(),
-                        }
-                    }
-                    _ => unreachable!(),
-                }
+                value_const!($processor, v_name, v_ty, constant, ret_handler, ret_bits, $op_32_imm, $op_64_imm)
             }
-            (ConstantOperand(l_constant), ConstantOperand(r_constant)) => match (l_constant.as_ref(), r_constant.as_ref()) {
-                (Constant::Int { bits: l_bits, value: l_value }, Constant::Int { bits: r_bits, value: r_value })
-                    if *l_bits == *r_bits =>
-                {
-                    match ret_bits {
-                        0..=32 => vec![
-                            MoviI32 { ret: ret_handler, arg: (l_value + r_value) as i32 },
-                            ExtactI32 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
-                        ],
+            (ConstantOperand(l_constant), ConstantOperand(r_constant)) => {
+                two_const!($op, l_constant, r_constant, ret_handler, ret_bits)
+            }
+            _ => todo!(),
+        }
+    }};
+}
 
-                        33..=64 => vec![
-                            MoviI64 { ret: ret_handler, arg: (l_value + r_value) as i64 },
-                            ExtactI64 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
-                        ],
-
-                        _ => todo!(),
-                    }
-                }
-                _ => unreachable!(),
-            },
+/// 不可交换的整数算数
+macro_rules! noncom_int_op_check {
+    ($processor: expr, $inst: expr, $op: tt, $op_32: ident, $op_32_imm: ident, $op_32_imm_f: ident, $op_64: ident, $op_64_imm: ident, $op_64_imm_f: ident) => {{
+        let ret_handler = *$processor.symbol_table_2.borrow().get($inst.get_result()).unwrap();
+        let ret_bits = match *$processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
+            IntegerType { bits } => bits,
+            _ => unreachable!(),
+        };
+        match ($inst.get_operand0(), $inst.get_operand1()) {
+            (LocalOperand { name: l_name, ty: l_ty }, LocalOperand { name: r_name, ty: r_ty }) => {
+                two_operand!($processor, l_name, r_name, l_ty, r_ty, ret_handler, ret_bits, $op_32, $op_64)
+            }
+            (LocalOperand { name: v_name, ty: v_ty }, ConstantOperand(constant)) => {
+                value_const!($processor, v_name, v_ty, constant, ret_handler, ret_bits, $op_32_imm, $op_64_imm)
+            }
+            (ConstantOperand(constant), LocalOperand { name: v_name, ty: v_ty }) => {
+                value_const!($processor, v_name, v_ty, constant, ret_handler, ret_bits, $op_32_imm_f, $op_64_imm_f)
+            }
+            (ConstantOperand(l_constant), ConstantOperand(r_constant)) => {
+                two_const!($op, l_constant, r_constant, ret_handler, ret_bits)
+            }
             _ => todo!(),
         }
     }};
@@ -125,22 +197,26 @@ macro_rules! com_int_op_check {
 
 impl Processor<'_> {
     pub fn add(&self, add: &Add) -> Vec<Tcg> {
-        com_int_op_check!(self, add, AddI32, AddiI32, AddI64, AddiI64)
+        com_int_op_check!(self, add, +, AddI32, AddiI32, AddI64, AddiI64)
     }
 
     pub fn and(&self, and: &And) -> Vec<Tcg> {
-        com_int_op_check!(self, and, AndI32, AndiI32, AndI64, AndiI64)
+        com_int_op_check!(self, and, &, AndI32, AndiI32, AndI64, AndiI64)
     }
 
     pub fn mul(&self, or: &Mul) -> Vec<Tcg> {
-        com_int_op_check!(self, or, MulI32, MuliI32, MulI64, MuliI64)
+        com_int_op_check!(self, or, *, MulI32, MuliI32, MulI64, MuliI64)
     }
 
     pub fn or(&self, or: &Or) -> Vec<Tcg> {
-        com_int_op_check!(self, or, OrI32, OriI32, OrI64, OriI64)
+        com_int_op_check!(self, or, |, OrI32, OriI32, OrI64, OriI64)
     }
 
     pub fn xor(&self, xor: &Xor) -> Vec<Tcg> {
-        com_int_op_check!(self, xor, XorI32, XoriI32, XorI64, XoriI64)
+        com_int_op_check!(self, xor, ^, XorI32, XoriI32, XorI64, XoriI64)
+    }
+
+    pub fn sub(&self, sub: &Sub) -> Vec<Tcg> {
+        noncom_int_op_check!(self, sub, -, SubI32, SubiI32, SubfiI32, SubI64, SubiI64, SubfiI64)
     }
 }

@@ -5,11 +5,11 @@ use std::fmt::{Display, Formatter, Result};
 pub enum Tcg {
     Label(Handler),
     // TempNewI32,
-
     AddiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
     AddI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
-    SubfiI32 { ret: Handler, arg_1: i32, arg_2: Handler },
+    // 为了代码的简化，这里 `subfi_i32` 与实际 TCG 对应函数的后两个参数是反过来的
+    SubfiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
     SubiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
     SubI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
@@ -25,11 +25,10 @@ pub enum Tcg {
     XoriI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
     XorI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
-
     AddiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
     AddI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
-    SubfiI64 { ret: Handler, arg_1: i64, arg_2: Handler },
+    SubfiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
     SubiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
     SubI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
@@ -67,7 +66,7 @@ impl Display for Tcg {
             Self::AddiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_addi_i32(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::AddI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_add_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
 
-            Self::SubfiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_subfi_i32(val_{ret}, {arg_1}, val_{arg_2});"),
+            Self::SubfiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_subfi_i32(val_{ret}, {arg_2}, val_{arg_1});"),
             Self::SubiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_subi_i32(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::SubI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_sub_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
 
@@ -83,11 +82,10 @@ impl Display for Tcg {
             Self::XoriI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_xori_i32(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::XorI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_xor_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
 
-
             Self::AddiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_addi_i64(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::AddI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_add_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
 
-            Self::SubfiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_subfi_i64(val_{ret}, {arg_1}, val_{arg_2});"),
+            Self::SubfiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_subfi_i64(val_{ret}, {arg_2}, val_{arg_1});"),
             Self::SubiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_subi_i64(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::SubI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_sub_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
 

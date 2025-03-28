@@ -54,7 +54,7 @@ impl<'a> Processor<'a> {
             .iter()
             .map(|inst| match inst {
                 Add(add) => self.add(add),
-                Sub(sub) => todo!(),
+                Sub(sub) => self.sub(sub),
                 Mul(mul) => self.mul(mul),
                 UDiv(udiv) => todo!(),
                 SDiv(sdiv) => todo!(),
