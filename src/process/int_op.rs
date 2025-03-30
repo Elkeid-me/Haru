@@ -1,7 +1,7 @@
 use super::Processor;
 use super::tcg::Tcg::{self, *};
 use llvm_ir::Constant;
-use llvm_ir::instruction::{Add, And, Mul, Or, Sub, Xor};
+use llvm_ir::instruction::{Add, And, Mul, Or, SDiv, SRem, Sub, UDiv, URem, Xor};
 use llvm_ir::types::Types;
 use llvm_ir::{Operand::*, Type::*, instruction::BinaryOp, instruction::HasResult};
 
@@ -200,12 +200,32 @@ impl Processor<'_> {
         com_int_op_check!(self, add, +, AddI32, AddiI32, AddI64, AddiI64)
     }
 
-    pub fn and(&self, and: &And) -> Vec<Tcg> {
-        com_int_op_check!(self, and, &, AndI32, AndiI32, AndI64, AndiI64)
+    pub fn sub(&self, sub: &Sub) -> Vec<Tcg> {
+        noncom_int_op_check!(self, sub, -, SubI32, SubiI32, SubfiI32, SubI64, SubiI64, SubfiI64)
     }
 
     pub fn mul(&self, or: &Mul) -> Vec<Tcg> {
         com_int_op_check!(self, or, *, MulI32, MuliI32, MulI64, MuliI64)
+    }
+
+    pub fn sdiv(&self, sdiv: &SDiv) -> Vec<Tcg> {
+        noncom_int_op_check!(self, sdiv, /, DivI32, DiviI32, DivfiI32, DivI64, DiviI64, DivfiI64)
+    }
+
+    pub fn udiv(&self, udiv: &UDiv) -> Vec<Tcg> {
+        noncom_int_op_check!(self, udiv, /, DivuI32, DivuiI32, DivufiI32, DivuI64, DivuiI64, DivufiI64)
+    }
+
+    pub fn srem(&self, srem: &SRem) -> Vec<Tcg> {
+        noncom_int_op_check!(self, srem, %, RemI32, RemiI32, RemfiI32, RemI64, RemiI64, RemfiI64)
+    }
+
+    pub fn urem(&self, urem: &URem) -> Vec<Tcg> {
+        noncom_int_op_check!(self, urem, %, RemuI32, RemuiI32, RemufiI32, RemuI64, RemuiI64, RemufiI64)
+    }
+
+    pub fn and(&self, and: &And) -> Vec<Tcg> {
+        com_int_op_check!(self, and, &, AndI32, AndiI32, AndI64, AndiI64)
     }
 
     pub fn or(&self, or: &Or) -> Vec<Tcg> {
@@ -214,9 +234,5 @@ impl Processor<'_> {
 
     pub fn xor(&self, xor: &Xor) -> Vec<Tcg> {
         com_int_op_check!(self, xor, ^, XorI32, XoriI32, XorI64, XoriI64)
-    }
-
-    pub fn sub(&self, sub: &Sub) -> Vec<Tcg> {
-        noncom_int_op_check!(self, sub, -, SubI32, SubiI32, SubfiI32, SubI64, SubiI64, SubfiI64)
     }
 }
