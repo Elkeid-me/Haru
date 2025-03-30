@@ -14,12 +14,12 @@ pub struct Args {
     /// 指定输入为文本格式的 LLVM IR，不指定时，将根据输入文件扩展名猜测。
     #[arg(short, long, default_value_t = false)]
     ll: bool,
+    /// 指定函数名。
+    #[arg(short, long, default_value_t = String::from_str("op").unwrap())]
+    func: String,
     /// 指定输出文件名，不指定时将输出到 `1.c`。
     #[arg(short, long)]
     output: Option<std::path::PathBuf>,
-    /// 指定函数名，不指定时为 `op`。
-    #[arg(short, long, default_value_t = String::from_str("op").unwrap())]
-    func: String,
     input: std::path::PathBuf,
 }
 

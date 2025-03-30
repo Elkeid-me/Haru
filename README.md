@@ -27,6 +27,7 @@ haru [OPTIONS] <INPUT>
 
 以上两个参数至多指定一个。未指定任何一个时，将根据 `<INPUT>` 文件扩展名猜测。
 
+- `-f`，`--func <FUNC>`，-f, 指定函数名，不指定时为 `op`。
 - `-o`，`--output <OUTPUT>`，指定输出文件名，不指定时将输出到 `1.c`。
 - `-h`，`--help`，打印帮助。
 - `-V`，`-version`，显示 Haru 版本。
