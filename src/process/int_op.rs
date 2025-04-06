@@ -8,8 +8,8 @@ use llvm_ir::{Operand::*, Type::*, instruction::BinaryOp, instruction::HasResult
 /// 处理两个非 Const 操作数的情况
 macro_rules! two_operand {
     ($processor: expr, $l_name: expr, $r_name: expr, $l_ty: expr, $r_ty: expr, $ret_handler: expr, $ret_bits: expr, $op_32: ident, $op_64: ident) => {{
-        let l_handler = *$processor.symbol_table_2.borrow().get($l_name).unwrap();
-        let r_handler = *$processor.symbol_table_2.borrow().get($r_name).unwrap();
+        let l_handler = $processor.name_to_handler($l_name);
+        let r_handler = $processor.name_to_handler($r_name);
         match ($l_ty.as_ref(), $r_ty.as_ref()) {
             (IntegerType { bits: l_bits }, IntegerType { bits: r_bits }) if *l_bits == *r_bits && *l_bits == $ret_bits => {
                 match l_bits {
@@ -36,7 +36,7 @@ macro_rules! two_operand {
 /// 可以配合 [`SubfiI32`] 等的参数反向食用
 macro_rules! value_const {
     ($processor: expr, $v_name: expr, $v_ty: expr, $constant: expr, $ret_handler: expr, $ret_bits: expr, $op_32_imm: ident, $op_64_imm: ident) => {{
-        let v_handler = *$processor.symbol_table_2.borrow().get($v_name).unwrap();
+        let v_handler = $processor.name_to_handler($v_name);
         match ($v_ty.as_ref(), $constant.as_ref()) {
             (IntegerType { bits: v_bits }, Constant::Int { bits: c_bits, value })
                 if *v_bits == *c_bits && *v_bits == $ret_bits =>
@@ -89,7 +89,7 @@ macro_rules! two_const {
 /// 可交换的整数算数
 macro_rules! com_int_op {
     ($processor: expr, $inst: expr, $op: tt, $op_32: ident, $op_32_imm: ident, $op_64: ident, $op_64_imm: ident) => {{
-        let ret_handler = *$processor.symbol_table_2.borrow().get($inst.get_result()).unwrap();
+        let ret_handler = $processor.name_to_handler($inst.get_result());
         let ret_bits = match *$processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
             IntegerType { bits } => bits,
             _ => todo!(),
@@ -113,7 +113,7 @@ macro_rules! com_int_op {
 /// 不可交换的整数算数
 macro_rules! noncom_int_op {
     ($processor: expr, $inst: expr, $op: tt, $op_32: ident, $op_32_imm: ident, $op_32_imm_f: ident, $op_64: ident, $op_64_imm: ident, $op_64_imm_f: ident) => {{
-        let ret_handler = *$processor.symbol_table_2.borrow().get($inst.get_result()).unwrap();
+        let ret_handler = $processor.name_to_handler($inst.get_result());
         let ret_bits = match *$processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
             IntegerType { bits } => bits,
             _ => todo!(),

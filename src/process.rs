@@ -36,6 +36,14 @@ pub struct Processor<'a> {
 }
 
 impl<'a> Processor<'a> {
+    pub fn new_handler(&self) -> Handler {
+        self.counter.borrow_mut().get()
+    }
+
+    pub fn name_to_handler(&self, name: &Name) -> Handler {
+        *self.symbol_table_2.borrow().get(name).unwrap()
+    }
+
     pub fn new(module: &'a Module) -> Self {
         Self {
             counter: RefCell::new(Counter::new()),
@@ -83,22 +91,22 @@ impl<'a> Processor<'a> {
             Ret(r) => match &r.return_operand {
                 Some(LocalOperand { name, ty }) => match ty.as_ref() {
                     IntegerType { bits: 0..=32 } => vec![
-                        Tcg::ExtI32I64 { ret: self.ret, arg: *self.symbol_table_2.borrow().get(name).unwrap() },
+                        Tcg::ExtI32I64 { ret: self.ret, arg: self.name_to_handler(name) },
                         Tcg::SetDestGpr { expr: self.ret },
                         Tcg::Ret,
                     ],
                     IntegerType { bits: 33..=64 } => vec![
-                        Tcg::MovI64 { ret: self.ret, arg: *self.symbol_table_2.borrow().get(name).unwrap() },
+                        Tcg::MovI64 { ret: self.ret, arg: self.name_to_handler(name) },
                         Tcg::SetDestGpr { expr: self.ret },
                         Tcg::Ret,
                     ],
                     FPType(llvm_ir::types::FPType::Double) => vec![
-                        Tcg::MovI64 { ret: self.ret, arg: *self.symbol_table_2.borrow().get(name).unwrap() },
+                        Tcg::MovI64 { ret: self.ret, arg: self.name_to_handler(name) },
                         Tcg::SetDestFprD { expr: self.ret },
                         Tcg::Ret,
                     ],
                     FPType(llvm_ir::types::FPType::Single) => vec![
-                        Tcg::MovI64 { ret: self.ret, arg: *self.symbol_table_2.borrow().get(name).unwrap() },
+                        Tcg::MovI64 { ret: self.ret, arg: self.name_to_handler(name) },
                         Tcg::SetDestFprHs { expr: self.ret },
                         Tcg::Ret,
                     ],
@@ -132,13 +140,13 @@ impl<'a> Processor<'a> {
     }
 
     pub fn process_func(&mut self, func: &Function) -> Vec<Tcg> {
-        let ret_handler = self.counter.borrow_mut().get();
+        let ret_handler = self.new_handler();
         let ret_type = func.return_type.clone();
         self.ret = ret_handler;
         self.symbol_table.borrow_mut().insert(ret_handler, ret_type);
 
         for parameter in func.parameters.iter() {
-            let para_handler = self.counter.borrow_mut().get();
+            let para_handler = self.new_handler();
             let para_type = parameter.ty.clone();
             self.symbol_table.borrow_mut().insert(para_handler, para_type);
             self.symbol_table_2.borrow_mut().insert(parameter.name.clone(), para_handler);
@@ -146,11 +154,11 @@ impl<'a> Processor<'a> {
         }
 
         for block in func.basic_blocks.iter() {
-            self.basic_blocks.borrow_mut().insert(block.name.clone(), self.counter.borrow_mut().get());
+            self.basic_blocks.borrow_mut().insert(block.name.clone(), self.new_handler());
             for inst in block.instrs.iter() {
                 if let Some(name) = inst.try_get_result() {
                     let ty = inst.get_type(&self.module.types);
-                    let handler = self.counter.borrow_mut().get();
+                    let handler = self.new_handler();
                     self.symbol_table.borrow_mut().insert(handler, ty);
                     self.symbol_table_2.borrow_mut().insert(name.clone(), handler);
                 }

@@ -7,8 +7,8 @@ use llvm_ir::{Operand::*, Type::*, instruction::BinaryOp, instruction::HasResult
 /// 处理两个非 Const 操作数
 macro_rules! two_operand {
     ($processor: expr, $l_name: expr, $r_name: expr, $arg_ty: expr, $ret_handler: expr, $op_32: ident, $op_64: ident) => {{
-        let l_handler = *$processor.symbol_table_2.borrow().get($l_name).unwrap();
-        let r_handler = *$processor.symbol_table_2.borrow().get($r_name).unwrap();
+        let l_handler = $processor.name_to_handler($l_name);
+        let r_handler = $processor.name_to_handler($r_name);
         match $arg_ty.as_ref() {
             FPType(FPType::Double) => vec![$op_64 { ret: $ret_handler, arg_1: l_handler, arg_2: r_handler }],
             FPType(FPType::Single) => vec![$op_32 { ret: $ret_handler, arg_1: l_handler, arg_2: r_handler }],
@@ -22,7 +22,7 @@ macro_rules! two_operand {
 /// 也可用于可交换运算中的一个非 Const 操作数和一个 Const 操作数的情况
 macro_rules! value_const {
     ($processor: expr, $v_name: expr, $v_ty: expr, $constant: expr, $ret_handler: expr, $op_32: ident, $op_64: ident) => {{
-        let v_handler = *$processor.symbol_table_2.borrow().get($v_name).unwrap();
+        let v_handler = $processor.name_to_handler($v_name);
         match ($v_ty.as_ref(), $constant.as_ref()) {
             (FPType(FPType::Double), Constant::Float(Float::Double(double))) => vec![
                 MoviI64 { ret: $ret_handler, arg: double.to_bits() as i64 },
@@ -42,7 +42,7 @@ macro_rules! value_const {
 /// 也可用于可交换运算中的一个非 Const 操作数和一个 Const 操作数的情况
 macro_rules! const_value {
     ($processor: expr, $v_name: expr, $v_ty: expr, $constant: expr, $ret_handler: expr, $op_32: ident, $op_64: ident) => {{
-        let v_handler = *$processor.symbol_table_2.borrow().get($v_name).unwrap();
+        let v_handler = $processor.name_to_handler($v_name);
         match ($constant.as_ref(), $v_ty.as_ref()) {
             (Constant::Float(Float::Double(double)), FPType(FPType::Double)) => vec![
                 MoviI64 { ret: $ret_handler, arg: double.to_bits() as i64 },
@@ -76,7 +76,7 @@ macro_rules! two_const {
 
 macro_rules! com_fp_op {
     ($processor: expr, $inst: expr, $op: tt, $op_32: ident, $op_64: ident) => {{
-        let ret_handler = *$processor.symbol_table_2.borrow().get($inst.get_result()).unwrap();
+        let ret_handler = $processor.name_to_handler($inst.get_result());
         match ($inst.get_operand0(), $inst.get_operand1()) {
             (LocalOperand { name: l_name, ty: arg_ty }, LocalOperand { name: r_name, ty: _ }) => {
                 two_operand!($processor, l_name, r_name, arg_ty, ret_handler, $op_32, $op_64)
@@ -93,7 +93,7 @@ macro_rules! com_fp_op {
 
 macro_rules! noncom_fp_op {
     ($processor: expr, $inst: expr, $op: tt, $op_32: ident, $op_64: ident) => {{
-        let ret_handler = *$processor.symbol_table_2.borrow().get($inst.get_result()).unwrap();
+        let ret_handler = $processor.name_to_handler($inst.get_result());
         match ($inst.get_operand0(), $inst.get_operand1()) {
             (LocalOperand { name: l_name, ty: arg_ty }, LocalOperand { name: r_name, ty: _ }) => {
                 two_operand!($processor, l_name, r_name, arg_ty, ret_handler, $op_32, $op_64)
@@ -132,10 +132,10 @@ impl Processor<'_> {
     }
 
     pub fn fneg(&self, fneg: &FNeg) -> Vec<Tcg> {
-        let ret_handler = *self.symbol_table_2.borrow().get(fneg.get_result()).unwrap();
+        let ret_handler = self.name_to_handler(fneg.get_result());
         match &fneg.get_operand() {
             LocalOperand { name, ty } => {
-                let arg_handler = *self.symbol_table_2.borrow().get(name).unwrap();
+                let arg_handler = self.name_to_handler(name);
                 match ty.as_ref() {
                     FPType(FPType::Double) => vec![XoriI64 { ret: ret_handler, arg_1: arg_handler, arg_2: 1 << 64 }],
                     FPType(FPType::Single) => vec![XoriI64 { ret: ret_handler, arg_1: arg_handler, arg_2: 1 << 32 }],
