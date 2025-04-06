@@ -5,7 +5,7 @@ use llvm_ir::instruction::{Add, And, Mul, Or, SDiv, SRem, Sub, UDiv, URem, Xor};
 use llvm_ir::{Operand::*, Type::*, instruction::BinaryOp, instruction::HasResult};
 
 /// 面善又友善的奇妙宏
-/// 对于两个非 Const 操作数进行处理
+/// 处理两个非 Const 操作数的情况
 macro_rules! two_operand {
     ($processor: expr, $l_name: expr, $r_name: expr, $l_ty: expr, $r_ty: expr, $ret_handler: expr, $ret_bits: expr, $op_32: ident, $op_64: ident) => {{
         let l_handler = *$processor.symbol_table_2.borrow().get($l_name).unwrap();
@@ -26,12 +26,12 @@ macro_rules! two_operand {
                     _ => todo!(),
                 }
             }
-            _ => unreachable!(),
+            _ => todo!(),
         }
     }};
 }
 
-/// 对于一个非 Const 操作数和一个 Const 操作数进行处理
+/// 处理一个非 Const 操作数和一个 Const 操作数的情况
 ///
 /// 可以配合 [`SubfiI32`] 等的参数反向食用
 macro_rules! value_const {
@@ -55,12 +55,12 @@ macro_rules! value_const {
                     _ => todo!(),
                 }
             }
-            _ => unreachable!(),
+            _ => todo!(),
         }
     }};
 }
 
-/// 对于两个 Const 操作数进行处理
+/// 处理两个 Const 操作数的情况
 macro_rules! two_const {
     ($op: tt, $l_constant: expr, $r_constant: expr, $ret_handler: expr, $ret_bits: expr) => {{
         match ($l_constant.as_ref(), $r_constant.as_ref()) {
@@ -81,7 +81,7 @@ macro_rules! two_const {
                     _ => todo!(),
                 }
             }
-            _ => unreachable!(),
+            _ => todo!(),
         }
     }};
 }
@@ -92,7 +92,7 @@ macro_rules! com_int_op {
         let ret_handler = *$processor.symbol_table_2.borrow().get($inst.get_result()).unwrap();
         let ret_bits = match *$processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
             IntegerType { bits } => bits,
-            _ => unreachable!(),
+            _ => todo!(),
         };
         match ($inst.get_operand0(), $inst.get_operand1()) {
             (LocalOperand { name: l_name, ty: l_ty }, LocalOperand { name: r_name, ty: r_ty }) => {
@@ -116,7 +116,7 @@ macro_rules! noncom_int_op {
         let ret_handler = *$processor.symbol_table_2.borrow().get($inst.get_result()).unwrap();
         let ret_bits = match *$processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
             IntegerType { bits } => bits,
-            _ => unreachable!(),
+            _ => todo!(),
         };
         match ($inst.get_operand0(), $inst.get_operand1()) {
             (LocalOperand { name: l_name, ty: l_ty }, LocalOperand { name: r_name, ty: r_ty }) => {
