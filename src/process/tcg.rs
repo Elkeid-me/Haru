@@ -4,11 +4,15 @@ use std::fmt::{Display, Formatter, Result};
 #[derive(Debug)]
 pub enum Tcg {
     Label(Handler),
-    // TempNewI32,
+
+    TempNewI32(Handler),
+    TempNewI64(Handler),
+
     AddiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
     AddI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
-    // 为了代码的简化，这里 `subfi_i32` 与实际 TCG 对应函数的后两个参数是反过来的
+    /// 为了代码的简化，这里 `subfi_i32` 与实际 TCG 对应函数的后两个参数是反过来的
+    /// `divfi_i32` 等同理
     SubfiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
     SubiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
     SubI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
@@ -86,7 +90,21 @@ pub enum Tcg {
     ExtactI64 { ret: Handler, arg: Handler, pos: u32, len: u32 },
     ExtrlI64I32 { ret: Handler, arg: Handler },
 
+    FaddS{ ret: Handler, arg_1: Handler, arg_2: Handler },
+    FaddD{ ret: Handler, arg_1: Handler, arg_2: Handler },
+
+    FsubS{ ret: Handler, arg_1: Handler, arg_2: Handler },
+    FsubD{ ret: Handler, arg_1: Handler, arg_2: Handler },
+
+    FmulS{ ret: Handler, arg_1: Handler, arg_2: Handler },
+    FmulD{ ret: Handler, arg_1: Handler, arg_2: Handler },
+
+    FdivS{ ret: Handler, arg_1: Handler, arg_2: Handler },
+    FdivD{ ret: Handler, arg_1: Handler, arg_2: Handler },
+
     SetDestGpr { expr: Handler },
+    SetDestFprHs { expr: Handler },
+    SetDestFprD { expr: Handler },
     Ret,
 }
 
@@ -94,6 +112,9 @@ impl Display for Tcg {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
             Self::Label(handler) => write!(f, "label_{handler}:"),
+
+            Self::TempNewI32(handler) => write!(f, "TCGv_i32 val_{handler} = tcg_temp_new_i32();"),
+            Self::TempNewI64(handler) => write!(f, "TCGv_i64 val_{handler} = tcg_temp_new_i32();"),
 
             Self::AddiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_addi_i32(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::AddI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_add_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
@@ -175,8 +196,22 @@ impl Display for Tcg {
             Self::ExtactI64 { ret, arg, pos, len } => write!(f, "tcg_gen_extract_i64(val_{ret}, val_{arg}, {pos}, {len});"),
             Self::ExtrlI64I32 { ret, arg } => write!(f, "tcg_gen_extrl_i64_i32(val_{ret}, val_{arg});"),
 
-            Self::SetDestGpr { expr } => write!(f, "gen_set_gpr(ctx, a->rd, val_{expr});"),
 
+            Self::FaddS{ ret, arg_1, arg_2 } => write!(f, "gen_helper_fadd_s(val_{ret}, tcg_env, val_{arg_1}, val_{arg_2});"),
+            Self::FaddD{ ret, arg_1, arg_2 } => write!(f, "gen_helper_fadd_d(val_{ret}, tcg_env, val_{arg_1}, val_{arg_2});"),
+
+            Self::FsubS{ ret, arg_1, arg_2 } => write!(f, "gen_helper_fsub_s(val_{ret}, tcg_env, val_{arg_1}, val_{arg_2});"),
+            Self::FsubD{ ret, arg_1, arg_2 } => write!(f, "gen_helper_fsub_d(val_{ret}, tcg_env, val_{arg_1}, val_{arg_2});"),
+
+            Self::FmulS{ ret, arg_1, arg_2 } => write!(f, "gen_helper_fmul_s(val_{ret}, tcg_env, val_{arg_1}, val_{arg_2});"),
+            Self::FmulD{ ret, arg_1, arg_2 } => write!(f, "gen_helper_fmul_d(val_{ret}, tcg_env, val_{arg_1}, val_{arg_2});"),
+
+            Self::FdivS{ ret, arg_1, arg_2 } => write!(f, "gen_helper_fdiv_s(val_{ret}, tcg_env, val_{arg_1}, val_{arg_2});"),
+            Self::FdivD{ ret, arg_1, arg_2 } => write!(f, "gen_helper_fdiv_d(val_{ret}, tcg_env, val_{arg_1}, val_{arg_2});"),
+
+            Self::SetDestGpr { expr } => write!(f, "gen_set_gpr(ctx, a->rd, val_{expr});"),
+            Self::SetDestFprHs { expr } => write!(f, "gen_set_fpr_hs(ctx, a->rd, val_{expr});"),
+            Self::SetDestFprD { expr } => write!(f, "gen_set_fpr_d(ctx, a->rd, val_{expr});"),
             Self::Ret => write!(f, "return true;"),
         }
     }

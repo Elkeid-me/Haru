@@ -1,6 +1,7 @@
+mod fp_op;
 mod int_op;
 mod tcg;
-use llvm_ir::types::Types;
+
 use tcg::Tcg;
 
 use llvm_ir::{BasicBlock, Function, Instruction::*, Module, Name, Operand::*};
@@ -63,15 +64,15 @@ impl<'a> Processor<'a> {
                 And(and) => self.and(and),
                 Or(or) => self.or(or),
                 Xor(xor) => self.xor(xor),
-                Shl(shl) => todo!(),
+                Shl(_shl) => todo!(),
                 LShr(lshr) => todo!(),
                 AShr(ashr) => todo!(),
-                FAdd(fadd) => todo!(),
-                FSub(fsub) => todo!(),
-                FMul(fmul) => todo!(),
-                FDiv(fdiv) => todo!(),
+                FAdd(fadd) => self.fadd(fadd),
+                FSub(fsub) => self.fsub(fsub),
+                FMul(fmul) => self.fmul(fmul),
+                FDiv(fdiv) => self.fdiv(fdiv),
                 FRem(frem) => todo!(),
-                FNeg(fneg) => todo!(),
+                FNeg(fneg) => self.fneg(fneg),
                 _ => vec![],
             })
             .flatten()
@@ -81,20 +82,45 @@ impl<'a> Processor<'a> {
         let mut ret = match &block.term {
             Ret(r) => match &r.return_operand {
                 Some(LocalOperand { name, ty }) => match ty.as_ref() {
-                    IntegerType { bits: 0..=32 } => {
-                        vec![
-                            Tcg::ExtI32I64 { ret: self.ret, arg: *self.symbol_table_2.borrow().get(name).unwrap() },
-                            Tcg::SetDestGpr { expr: self.ret },
-                            Tcg::Ret,
-                        ]
-                    }
-                    IntegerType { bits: 33..=64 } => {
-                        vec![
-                            Tcg::MovI64 { ret: self.ret, arg: *self.symbol_table_2.borrow().get(name).unwrap() },
-                            Tcg::SetDestGpr { expr: self.ret },
-                            Tcg::Ret,
-                        ]
-                    }
+                    IntegerType { bits: 0..=32 } => vec![
+                        Tcg::ExtI32I64 { ret: self.ret, arg: *self.symbol_table_2.borrow().get(name).unwrap() },
+                        Tcg::SetDestGpr { expr: self.ret },
+                        Tcg::Ret,
+                    ],
+                    IntegerType { bits: 33..=64 } => vec![
+                        Tcg::MovI64 { ret: self.ret, arg: *self.symbol_table_2.borrow().get(name).unwrap() },
+                        Tcg::SetDestGpr { expr: self.ret },
+                        Tcg::Ret,
+                    ],
+                    FPType(llvm_ir::types::FPType::Double) => vec![
+                        Tcg::MovI64 { ret: self.ret, arg: *self.symbol_table_2.borrow().get(name).unwrap() },
+                        Tcg::SetDestFprD { expr: self.ret },
+                        Tcg::Ret,
+                    ],
+                    FPType(llvm_ir::types::FPType::Single) => vec![
+                        Tcg::MovI64 { ret: self.ret, arg: *self.symbol_table_2.borrow().get(name).unwrap() },
+                        Tcg::SetDestFprHs { expr: self.ret },
+                        Tcg::Ret,
+                    ],
+                    _ => todo!(),
+                },
+                Some(ConstantOperand(constant)) => match constant.as_ref() {
+                    llvm_ir::Constant::Int { bits, value } => vec![
+                        Tcg::MoviI64 { ret: self.ret, arg: *value as i64 },
+                        Tcg::ExtactI64 { ret: self.ret, arg: self.ret, pos: 0, len: *bits },
+                        Tcg::SetDestGpr { expr: self.ret },
+                        Tcg::Ret,
+                    ],
+                    llvm_ir::Constant::Float(llvm_ir::constant::Float::Single(single)) => vec![
+                        Tcg::MoviI64 { ret: self.ret, arg: single.to_bits() as i64 },
+                        Tcg::SetDestFprHs { expr: self.ret },
+                        Tcg::Ret,
+                    ],
+                    llvm_ir::Constant::Float(llvm_ir::constant::Float::Double(double)) => vec![
+                        Tcg::MoviI64 { ret: self.ret, arg: double.to_bits() as i64 },
+                        Tcg::SetDestFprD { expr: self.ret },
+                        Tcg::Ret,
+                    ],
                     _ => todo!(),
                 },
                 _ => todo!(),
@@ -107,9 +133,9 @@ impl<'a> Processor<'a> {
 
     pub fn process_func(&mut self, func: &Function) -> Vec<Tcg> {
         let ret_handler = self.counter.borrow_mut().get();
-        // let ret_type = func.return_type.clone();
+        let ret_type = func.return_type.clone();
         self.ret = ret_handler;
-        self.symbol_table.borrow_mut().insert(ret_handler, Types::i64(&self.module.types));
+        self.symbol_table.borrow_mut().insert(ret_handler, ret_type);
 
         for parameter in func.parameters.iter() {
             let para_handler = self.counter.borrow_mut().get();
