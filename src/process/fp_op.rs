@@ -143,8 +143,8 @@ impl Processor<'_> {
                 }
             }
             ConstantOperand(constant) => match constant.as_ref() {
-                Constant::Float(Float::Single(single)) => vec![MoviI64 { ret: ret_handler, arg: single.to_bits() as i64 }],
-                Constant::Float(Float::Double(double)) => vec![MoviI64 { ret: ret_handler, arg: double.to_bits() as i64 }],
+                Constant::Float(Float::Double(double)) => vec![MoviI64 { ret: ret_handler, arg: (-double).to_bits() as i64 }],
+                Constant::Float(Float::Single(single)) => vec![MoviI64 { ret: ret_handler, arg: (-single).to_bits() as i64 }],
                 _ => todo!(),
             },
             _ => todo!(),
