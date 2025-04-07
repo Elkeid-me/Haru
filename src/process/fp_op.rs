@@ -137,8 +137,8 @@ impl Processor<'_> {
             LocalOperand { name, ty } => {
                 let arg_handler = self.name_to_handler(name);
                 match ty.as_ref() {
-                    FPType(FPType::Double) => vec![XoriI64 { ret: ret_handler, arg_1: arg_handler, arg_2: 1 << 64 }],
-                    FPType(FPType::Single) => vec![XoriI64 { ret: ret_handler, arg_1: arg_handler, arg_2: 1 << 32 }],
+                    FPType(FPType::Double) => vec![XoriI64 { ret: ret_handler, arg_1: arg_handler, arg_2: 1 << 63 }],
+                    FPType(FPType::Single) => vec![XoriI64 { ret: ret_handler, arg_1: arg_handler, arg_2: 1 << 31 }],
                     _ => todo!(),
                 }
             }
