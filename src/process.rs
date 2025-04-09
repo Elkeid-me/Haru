@@ -1,6 +1,7 @@
 mod fp_op;
 mod int_op;
 mod tcg;
+mod cvt_op;
 
 use tcg::Tcg;
 
@@ -81,6 +82,10 @@ impl<'a> Processor<'a> {
                 FDiv(fdiv) => self.fdiv(fdiv),
                 FRem(frem) => todo!(),
                 FNeg(fneg) => self.fneg(fneg),
+                FPToSI(fp_to_si) => self.fp_to_si(fp_to_si),
+                FPToUI(fp_to_ui) => self.fp_to_ui(fp_to_ui),
+                SIToFP(si_to_fp) => self.si_to_fp(si_to_fp),
+                UIToFP(ui_to_fp) => self.ui_to_fp(ui_to_fp),
                 _ => vec![],
             })
             .flatten()

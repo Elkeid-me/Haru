@@ -1,12 +1,11 @@
 use super::Handler;
 use std::fmt::{Display, Formatter, Result};
 
+/// 名义上叫 TCG，实际上因为浮点函数，不是 TCG。
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum Tcg {
     Label(Handler),
-
-    TempNewI32(Handler),
-    TempNewI64(Handler),
 
     AddiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
     AddI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
@@ -90,6 +89,42 @@ pub enum Tcg {
     ExtactI64 { ret: Handler, arg: Handler, pos: u32, len: u32 },
     ExtrlI64I32 { ret: Handler, arg: Handler },
 
+    /// 单精度浮点数转为 32 位有符号整数
+    FcvtWS{ret: Handler, arg: Handler},
+    /// 单精度浮点数转为 32 位无符号整数
+    FcvtWuS{ret: Handler, arg: Handler},
+    /// 单精度浮点数转为 64 位有符号整数
+    FcvtLS{ret: Handler, arg: Handler},
+    /// 单精度浮点数转为 64 位无符号整数
+    FcvtLuS{ret: Handler, arg: Handler},
+
+    /// 32 位有符号整数转为单精度浮点数
+    FcvtSW{ret: Handler, arg: Handler},
+    /// 32 位无符号整数转为单精度浮点数
+    FcvtSWu{ret: Handler, arg: Handler},
+    /// 64 位有符号整数转为单精度浮点数
+    FcvtSL{ret: Handler, arg: Handler},
+    /// 64 位无符号整数转为单精度浮点数
+    FcvtSLu{ret: Handler, arg: Handler},
+
+    /// 双精度浮点数转为 32 位有符号整数
+    FcvtWD{ret: Handler, arg: Handler},
+    /// 双精度浮点数转为 32 位无符号整数
+    FcvtWuD{ret: Handler, arg: Handler},
+    /// 双精度浮点数转为 64 位有符号整数
+    FcvtLD{ret: Handler, arg: Handler},
+    /// 双精度浮点数转为 64 位无符号整数
+    FcvtLuD{ret: Handler, arg: Handler},
+
+    /// 32 位有符号整数转为双精度浮点数
+    FcvtDW{ret: Handler, arg: Handler},
+    /// 32 位无符号整数转为双精度浮点数
+    FcvtDWu{ret: Handler, arg: Handler},
+    /// 64 位有符号整数转为双精度浮点数
+    FcvtDL{ret: Handler, arg: Handler},
+    /// 64 位无符号整数转为双精度浮点数
+    FcvtDLu{ret: Handler, arg: Handler},
+
     FaddS{ ret: Handler, arg_1: Handler, arg_2: Handler },
     FaddD{ ret: Handler, arg_1: Handler, arg_2: Handler },
 
@@ -112,9 +147,6 @@ impl Display for Tcg {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
             Self::Label(handler) => write!(f, "label_{handler}:"),
-
-            Self::TempNewI32(handler) => write!(f, "TCGv_i32 val_{handler} = tcg_temp_new_i32();"),
-            Self::TempNewI64(handler) => write!(f, "TCGv_i64 val_{handler} = tcg_temp_new_i32();"),
 
             Self::AddiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_addi_i32(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::AddI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_add_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
@@ -196,6 +228,25 @@ impl Display for Tcg {
             Self::ExtactI64 { ret, arg, pos, len } => write!(f, "tcg_gen_extract_i64(val_{ret}, val_{arg}, {pos}, {len});"),
             Self::ExtrlI64I32 { ret, arg } => write!(f, "tcg_gen_extrl_i64_i32(val_{ret}, val_{arg});"),
 
+            Self::FcvtWS{ret, arg} => write!(f, "gen_helper_fcvt_w_s(val_{ret}, tcg_env, val_{arg});"),
+            Self::FcvtWuS{ret, arg} => write!(f, "gen_helper_fcvt_wu_s(val_{ret}, tcg_env, val_{arg});"),
+            Self::FcvtLS{ret, arg} => write!(f, "gen_helper_fcvt_l_s(val_{ret}, tcg_env, val_{arg});"),
+            Self::FcvtLuS{ret, arg} => write!(f, "gen_helper_fcvt_lu_s(val_{ret}, tcg_env, val_{arg});"),
+
+            Self::FcvtSW{ret, arg} => write!(f, "gen_helper_fcvt_s_w(val_{ret}, tcg_env, val_{arg});"),
+            Self::FcvtSWu{ret, arg} => write!(f, "gen_helper_fcvt_s_wu(val_{ret}, tcg_env, val_{arg});"),
+            Self::FcvtSL{ret, arg} => write!(f, "gen_helper_fcvt_s_l(val_{ret}, tcg_env, val_{arg});"),
+            Self::FcvtSLu{ret, arg} => write!(f, "gen_helper_fcvt_s_lu(val_{ret}, tcg_env, val_{arg});"),
+
+            Self::FcvtWD{ret, arg} => write!(f, "gen_helper_fcvt_w_d(val_{ret}, tcg_env, val_{arg});"),
+            Self::FcvtWuD{ret, arg} => write!(f, "gen_helper_fcvt_wu_d(val_{ret}, tcg_env, val_{arg});"),
+            Self::FcvtLD{ret, arg} => write!(f, "gen_helper_fcvt_l_d(val_{ret}, tcg_env, val_{arg});"),
+            Self::FcvtLuD{ret, arg} => write!(f, "gen_helper_fcvt_lu_d(val_{ret}, tcg_env, val_{arg});"),
+
+            Self::FcvtDW{ret, arg} => write!(f, "gen_helper_fcvt_d_w(val_{ret}, tcg_env, val_{arg});"),
+            Self::FcvtDWu{ret, arg} => write!(f, "gen_helper_fcvt_d_wu(val_{ret}, tcg_env, val_{arg});"),
+            Self::FcvtDL{ret, arg} => write!(f, "gen_helper_fcvt_d_l(val_{ret}, tcg_env, val_{arg});"),
+            Self::FcvtDLu{ret, arg} => write!(f, "gen_helper_fcvt_d_lu(val_{ret}, tcg_env, val_{arg});"),
 
             Self::FaddS{ ret, arg_1, arg_2 } => write!(f, "gen_helper_fadd_s(val_{ret}, tcg_env, val_{arg_1}, val_{arg_2});"),
             Self::FaddD{ ret, arg_1, arg_2 } => write!(f, "gen_helper_fadd_d(val_{ret}, tcg_env, val_{arg_1}, val_{arg_2});"),
