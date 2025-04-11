@@ -44,6 +44,15 @@ pub enum Tcg {
     XoriI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
     XorI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
+    ShliI32{ret: Handler, arg_1: Handler, arg_2: i32},
+    ShlI32{ret: Handler, arg_1: Handler, arg_2: Handler},
+
+    ShriI32{ret: Handler, arg_1: Handler, arg_2: i32},
+    ShrI32{ret: Handler, arg_1: Handler, arg_2: Handler},
+
+    SariI32{ret: Handler, arg_1: Handler, arg_2: i32},
+    SarI32{ret: Handler, arg_1: Handler, arg_2: Handler},
+
     AddiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
     AddI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
@@ -78,6 +87,15 @@ pub enum Tcg {
 
     XoriI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
     XorI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
+
+    ShliI64{ret: Handler, arg_1: Handler, arg_2: i64},
+    ShlI64{ret: Handler, arg_1: Handler, arg_2: Handler},
+
+    ShriI64{ret: Handler, arg_1: Handler, arg_2: i64},
+    ShrI64{ret: Handler, arg_1: Handler, arg_2: Handler},
+
+    SariI64{ret: Handler, arg_1: Handler, arg_2: i64},
+    SarI64{ret: Handler, arg_1: Handler, arg_2: Handler},
 
     MoviI32 { ret: Handler, arg: i32 },
     MoviI64 { ret: Handler, arg: i64 },
@@ -183,6 +201,15 @@ impl Display for Tcg {
             Self::XoriI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_xori_i32(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::XorI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_xor_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
 
+            Self::ShliI32{ret, arg_1, arg_2} => write!(f, "tcg_gen_shli_i32(val_{ret}, val_{arg_1}, {arg_2});"),
+            Self::ShlI32{ret, arg_1, arg_2} => write!(f, "tcg_gen_shl_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
+
+            Self::ShriI32{ret, arg_1, arg_2} => write!(f, "tcg_gen_shri_i32(val_{ret}, val_{arg_1}, {arg_2});"),
+            Self::ShrI32{ret, arg_1, arg_2} => write!(f, "tcg_gen_shr_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
+
+            Self::SariI32{ret, arg_1, arg_2} => write!(f, "tcg_gen_sari_i32(val_{ret}, val_{arg_1}, {arg_2});"),
+            Self::SarI32{ret, arg_1, arg_2} => write!(f, "tcg_gen_sar_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
+
             Self::AddiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_addi_i64(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::AddI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_add_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
 
@@ -217,6 +244,15 @@ impl Display for Tcg {
 
             Self::XoriI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_xori_i64(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::XorI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_xor_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
+
+            Self::ShliI64{ret, arg_1, arg_2} => write!(f, "tcg_gen_shli_i64(val_{ret}, val_{arg_1}, {arg_2});"),
+            Self::ShlI64{ret, arg_1, arg_2} => write!(f, "tcg_gen_shl_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
+
+            Self::ShriI64{ret, arg_1, arg_2} => write!(f, "tcg_gen_shri_i64(val_{ret}, val_{arg_1}, {arg_2});"),
+            Self::ShrI64{ret, arg_1, arg_2} => write!(f, "tcg_gen_shr_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
+
+            Self::SariI64{ret, arg_1, arg_2} => write!(f, "tcg_gen_sari_i64(val_{ret}, val_{arg_1}, {arg_2});"),
+            Self::SarI64{ret, arg_1, arg_2} => write!(f, "tcg_gen_sar_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
 
             Self::MoviI32 { ret, arg } => write!(f, "tcg_gen_movi_i32(val_{ret}, {arg});"),
             Self::MoviI64 { ret, arg } => write!(f, "tcg_gen_movi_i64(val_{ret}, {arg});"),
