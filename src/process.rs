@@ -1,7 +1,7 @@
+mod cvt_op;
 mod fp_op;
 mod int_op;
 mod tcg;
-mod cvt_op;
 
 use tcg::Tcg;
 
