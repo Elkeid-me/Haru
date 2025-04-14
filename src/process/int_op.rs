@@ -116,8 +116,8 @@ macro_rules! two_const_sign {
 macro_rules! com_int_op {
     ($processor: expr, $inst: expr, $op: tt, $op_32: ident, $op_32_imm: ident, $op_64: ident, $op_64_imm: ident) => {{
         let ret_handler = $processor.name_to_handler($inst.get_result());
-        let ret_bits = match *$processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
-            IntegerType { bits } => bits,
+        let ret_bits = match $processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
+            IntegerType { bits } => *bits,
             _ => todo!(),
         };
         match ($inst.get_operand0(), $inst.get_operand1()) {
@@ -140,8 +140,8 @@ macro_rules! com_int_op {
 macro_rules! noncom_int_op {
     ($processor: expr, $inst: expr, $op: tt, $op_32: ident, $op_32_imm: ident, $op_32_imm_f: ident, $op_64: ident, $op_64_imm: ident, $op_64_imm_f: ident) => {{
         let ret_handler = $processor.name_to_handler($inst.get_result());
-        let ret_bits = match *$processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
-            IntegerType { bits } => bits,
+        let ret_bits = match $processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
+            IntegerType { bits } => *bits,
             _ => todo!(),
         };
         match ($inst.get_operand0(), $inst.get_operand1()) {
@@ -166,8 +166,8 @@ macro_rules! noncom_int_op {
 macro_rules! noncom_int_op_sign {
     ($processor: expr, $inst: expr, $op: tt, $op_32: ident, $op_32_imm: ident, $op_32_imm_f: ident, $op_64: ident, $op_64_imm: ident, $op_64_imm_f: ident) => {{
         let ret_handler = $processor.name_to_handler($inst.get_result());
-        let ret_bits = match *$processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
-            IntegerType { bits } => bits,
+        let ret_bits = match $processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
+            IntegerType { bits } => *bits,
             _ => todo!(),
         };
         match ($inst.get_operand0(), $inst.get_operand1()) {
@@ -225,8 +225,8 @@ macro_rules! const_value_shift {
 macro_rules! shift_int_op {
     ($processor: expr, $inst: expr, $op: tt, $op_32: ident, $op_32_imm: ident, $op_64: ident, $op_64_imm: ident) => {{
         let ret_handler = $processor.name_to_handler($inst.get_result());
-        let ret_bits = match *$processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
-            IntegerType { bits } => bits,
+        let ret_bits = match $processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
+            IntegerType { bits } => *bits,
             _ => todo!(),
         };
         match ($inst.get_operand0(), $inst.get_operand1()) {
@@ -250,8 +250,8 @@ macro_rules! shift_int_op {
 macro_rules! shift_int_op_sign {
     ($processor: expr, $inst: expr, $op: tt, $op_32: ident, $op_32_imm: ident, $op_64: ident, $op_64_imm: ident) => {{
         let ret_handler = $processor.name_to_handler($inst.get_result());
-        let ret_bits = match *$processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
-            IntegerType { bits } => bits,
+        let ret_bits = match $processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
+            IntegerType { bits } => *bits,
             _ => todo!(),
         };
         match ($inst.get_operand0(), $inst.get_operand1()) {
