@@ -80,12 +80,17 @@ impl<'a> Processor<'a> {
                 FSub(fsub) => self.fsub(fsub),
                 FMul(fmul) => self.fmul(fmul),
                 FDiv(fdiv) => self.fdiv(fdiv),
-                FRem(frem) => todo!(),
+                FRem(_frem) => todo!(),
                 FNeg(fneg) => self.fneg(fneg),
                 FPToSI(fp_to_si) => self.fp_to_si(fp_to_si),
                 FPToUI(fp_to_ui) => self.fp_to_ui(fp_to_ui),
                 SIToFP(si_to_fp) => self.si_to_fp(si_to_fp),
                 UIToFP(ui_to_fp) => self.ui_to_fp(ui_to_fp),
+                FPExt(fp_ext) => self.fp_ext(fp_ext),
+                FPTrunc(fp_trunc) => self.fp_trunc(fp_trunc),
+                ZExt(zext) => self.zext(zext),
+                SExt(sext) => self.sext(sext),
+                Trunc(trunc) => self.trunc(trunc),
                 _ => vec![],
             })
             .flatten()

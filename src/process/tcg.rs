@@ -143,6 +143,9 @@ pub enum Tcg {
     /// 64 位无符号整数转为双精度浮点数
     FcvtDLu{ret: Handler, arg: Handler},
 
+    FcvtDS{ret: Handler, arg: Handler},
+    FcvtSD{ret: Handler, arg: Handler},
+
     FaddS{ ret: Handler, arg_1: Handler, arg_2: Handler },
     FaddD{ ret: Handler, arg_1: Handler, arg_2: Handler },
 
@@ -283,6 +286,9 @@ impl Display for Tcg {
             Self::FcvtDWu{ret, arg} => write!(f, "gen_helper_fcvt_d_wu(val_{ret}, tcg_env, val_{arg});"),
             Self::FcvtDL{ret, arg} => write!(f, "gen_helper_fcvt_d_l(val_{ret}, tcg_env, val_{arg});"),
             Self::FcvtDLu{ret, arg} => write!(f, "gen_helper_fcvt_d_lu(val_{ret}, tcg_env, val_{arg});"),
+
+            Self::FcvtDS{ret, arg} => write!(f, "gen_helper_fcvt_d_s(val_{ret}, tcg_env, val_{arg});"),
+            Self::FcvtSD{ret, arg} => write!(f, "gen_helper_fcvt_s_d(val_{ret}, tcg_env, val_{arg});"),
 
             Self::FaddS{ ret, arg_1, arg_2 } => write!(f, "gen_helper_fadd_s(val_{ret}, tcg_env, val_{arg_1}, val_{arg_2});"),
             Self::FaddD{ ret, arg_1, arg_2 } => write!(f, "gen_helper_fadd_d(val_{ret}, tcg_env, val_{arg_1}, val_{arg_2});"),
