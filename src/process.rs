@@ -151,9 +151,8 @@ impl<'a> Processor<'a> {
 
     pub fn process_func(&mut self, func: &Function) -> Vec<Tcg> {
         let ret_handler = self.new_handler();
-        let ret_type = func.return_type.clone();
         self.ret = ret_handler;
-        self.symbol_table.borrow_mut().insert(ret_handler, ret_type);
+        self.symbol_table.borrow_mut().insert(ret_handler, llvm_ir::types::Types::i64(&self.module.types));
 
         for parameter in func.parameters.iter() {
             let para_handler = self.new_handler();

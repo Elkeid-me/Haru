@@ -197,27 +197,25 @@ impl Processor<'_> {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
                 match (ty.as_ref(), ret_bits) {
-                    (IntegerType { bits: 0..=32 }, 0..=32) => {
-                        vec![ExtactI32 { ret: ret_handler, arg: v_handler, pos: 0, len: ret_bits }]
+                    (IntegerType { bits }, 0..=32) if matches!(bits, 0..=32) => {
+                        vec![ExtactI32 { ret: ret_handler, arg: v_handler, pos: 0, len: *bits }]
                     }
-                    (IntegerType { bits: 0..=32 }, 33..=64) => {
-                        vec![
-                            ExtuI32I64 { ret: ret_handler, arg: v_handler },
-                            ExtactI64 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
-                        ]
-                    }
-                    (IntegerType { bits: 33..=64 }, 33..=64) => {
-                        vec![ExtactI64 { ret: ret_handler, arg: v_handler, pos: 0, len: ret_bits }]
+                    (IntegerType { bits }, 33..=64) if matches!(bits, 0..=32) => vec![
+                        ExtuI32I64 { ret: ret_handler, arg: v_handler },
+                        ExtactI64 { ret: ret_handler, arg: ret_handler, pos: 0, len: *bits },
+                    ],
+                    (IntegerType { bits }, 33..=64) if matches!(bits, 33..=64) => {
+                        vec![ExtactI64 { ret: ret_handler, arg: v_handler, pos: 0, len: *bits }]
                     }
                     _ => todo!(),
                 }
             }
             ConstantOperand(constant) => match (constant.as_ref(), ret_bits) {
-                (Constant::Int { bits: _, value }, 0..=32) => {
-                    vec![MoviI32 { ret: ret_handler, arg: (value & (0xffffffffffffffff >> (64 - ret_bits))) as i32 }]
+                (Constant::Int { bits, value }, 0..=32) => {
+                    vec![MoviI32 { ret: ret_handler, arg: (value & (0xffffffffffffffff >> (64 - bits))) as i32 }]
                 }
-                (Constant::Int { bits: _, value }, 33..=64) => {
-                    vec![MoviI64 { ret: ret_handler, arg: (value & (0xffffffffffffffff >> (64 - ret_bits))) as i64 }]
+                (Constant::Int { bits, value }, 33..=64) => {
+                    vec![MoviI64 { ret: ret_handler, arg: (value & (0xffffffffffffffff >> (64 - bits))) as i64 }]
                 }
                 _ => todo!(),
             },
@@ -235,27 +233,31 @@ impl Processor<'_> {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
                 match (ty.as_ref(), ret_bits) {
-                    (IntegerType { bits: 0..=32 }, 0..=32) => {
-                        vec![ExtactI32 { ret: ret_handler, arg: v_handler, pos: 0, len: ret_bits }]
-                    }
-                    (IntegerType { bits: 0..=32 }, 33..=64) => {
-                        vec![
-                            ExtI32I64 { ret: ret_handler, arg: v_handler },
-                            ExtactI64 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
-                        ]
-                    }
-                    (IntegerType { bits: 33..=64 }, 33..=64) => {
-                        vec![ExtactI64 { ret: ret_handler, arg: v_handler, pos: 0, len: ret_bits }]
-                    }
+                    (IntegerType { bits }, 0..=32) if matches!(bits, 0..=32) => vec![
+                        ExtactI32 { ret: ret_handler, arg: v_handler, pos: 0, len: *bits },
+                        ShliI32 { ret: ret_handler, arg_1: ret_handler, arg_2: (32 - bits) as i32 },
+                        SariI32 { ret: ret_handler, arg_1: ret_handler, arg_2: (32 - bits) as i32 },
+                    ],
+                    (IntegerType { bits }, 33..=64) if matches!(bits, 0..=32) => vec![
+                        ExtuI32I64 { ret: ret_handler, arg: v_handler },
+                        ExtactI64 { ret: ret_handler, arg: ret_handler, pos: 0, len: *bits },
+                        ShliI64 { ret: ret_handler, arg_1: ret_handler, arg_2: (32 - bits) as i64 },
+                        SariI64 { ret: ret_handler, arg_1: ret_handler, arg_2: (32 - bits) as i64 },
+                    ],
+                    (IntegerType { bits }, 33..=64) if matches!(bits, 33..=64) => vec![
+                        ExtactI64 { ret: ret_handler, arg: v_handler, pos: 0, len: *bits },
+                        ShliI64 { ret: ret_handler, arg_1: ret_handler, arg_2: (64 - bits) as i64 },
+                        SariI64 { ret: ret_handler, arg_1: ret_handler, arg_2: (64 - bits) as i64 },
+                    ],
                     _ => todo!(),
                 }
             }
             ConstantOperand(constant) => match (constant.as_ref(), ret_bits) {
-                (Constant::Int { bits: _, value }, 0..=32) => {
-                    vec![MoviI32 { ret: ret_handler, arg: (value & (0xffffffffffffffff >> (64 - ret_bits))) as i32 }]
+                (Constant::Int { bits, value }, 0..=32) => {
+                    vec![MoviI32 { ret: ret_handler, arg: (((value & (0xffff_ffff_ffff_ffffu64 >> (64 - bits))) as i64) << (64 - bits)) as i32 }]
                 }
-                (Constant::Int { bits: _, value }, 33..=64) => {
-                    vec![MoviI64 { ret: ret_handler, arg: (value & (0xffffffffffffffff >> (64 - ret_bits))) as i64 }]
+                (Constant::Int { bits, value }, 33..=64) => {
+                    vec![MoviI64 { ret: ret_handler, arg: (((value & (0xffff_ffff_ffff_ffffu64 >> (64 - bits))) as i64) << (64 - bits)) as i64 }]
                 }
                 _ => todo!(),
             },
