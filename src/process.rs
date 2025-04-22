@@ -6,7 +6,7 @@ mod tcg;
 use tcg::Tcg;
 
 use llvm_ir::{BasicBlock, Function, Instruction::*, Module, Name, Operand::*};
-use llvm_ir::{Terminator::*, Type::*, TypeRef, types::Typed};
+use llvm_ir::{Terminator::*, Type::*, TypeRef, function::ParameterAttribute, types::Typed};
 use std::{cell::RefCell, collections::HashMap};
 
 type Handler = u64;
@@ -30,10 +30,11 @@ pub struct Processor<'a> {
     counter: RefCell<Counter>,
     pub symbol_table: RefCell<HashMap<Handler, TypeRef>>,
     symbol_table_2: RefCell<HashMap<Name, Handler>>,
-    ret: Handler,
+    pub ret: Handler,
     pub parameters: Vec<Handler>,
     module: &'a Module,
     basic_blocks: RefCell<HashMap<Name, Handler>>,
+    ret_attr: Option<ParameterAttribute>,
 }
 
 impl<'a> Processor<'a> {
@@ -54,6 +55,7 @@ impl<'a> Processor<'a> {
             parameters: Vec::new(),
             module,
             basic_blocks: RefCell::new(HashMap::new()),
+            ret_attr: None,
         }
     }
 
@@ -100,16 +102,40 @@ impl<'a> Processor<'a> {
         let mut ret = match &block.term {
             Ret(r) => match &r.return_operand {
                 Some(LocalOperand { name, ty }) => match ty.as_ref() {
-                    IntegerType { bits: 0..=32 } => vec![
-                        Tcg::ExtI32I64 { ret: self.ret, arg: self.name_to_handler(name) },
-                        Tcg::SetDestGpr { expr: self.ret },
-                        Tcg::Ret,
-                    ],
-                    IntegerType { bits: 33..=64 } => vec![
-                        Tcg::MovI64 { ret: self.ret, arg: self.name_to_handler(name) },
-                        Tcg::SetDestGpr { expr: self.ret },
-                        Tcg::Ret,
-                    ],
+                    IntegerType { bits } if matches!(bits, 0..=32) => {
+                        let mut ret = vec![Tcg::rv_arc(
+                            Tcg::MovI32 { ret: self.ret, arg: self.name_to_handler(name) },
+                            Tcg::ExtuI32I64 { ret: self.ret, arg: self.name_to_handler(name) },
+                        )];
+                        if matches!(self.ret_attr, Some(ParameterAttribute::SignExt)) {
+                            ret.extend([
+                                Tcg::rv_arc(
+                                    Tcg::ShliI32 { ret: self.ret, arg_1: self.ret, arg_2: (32 - bits) as i32 },
+                                    Tcg::ShliI64 { ret: self.ret, arg_1: self.ret, arg_2: (64 - bits) as i64 },
+                                ),
+                                Tcg::rv_arc(
+                                    Tcg::SariI32 { ret: self.ret, arg_1: self.ret, arg_2: (32 - bits) as i32 },
+                                    Tcg::SariI64 { ret: self.ret, arg_1: self.ret, arg_2: (64 - bits) as i64 },
+                                ),
+                            ]);
+                        }
+                        ret.extend([Tcg::SetDestGpr { expr: self.ret }, Tcg::Ret]);
+                        ret
+                    }
+                    IntegerType { bits } if matches!(bits, 33..=64) => {
+                        let mut ret = vec![Tcg::MovI64 { ret: self.ret, arg: self.name_to_handler(name) }];
+                        if matches!(self.ret_attr, Some(ParameterAttribute::SignExt)) {
+                            ret.extend([
+                                Tcg::ShliI64 { ret: self.ret, arg_1: self.ret, arg_2: (64 - bits) as i64 },
+                                Tcg::SariI64 { ret: self.ret, arg_1: self.ret, arg_2: (64 - bits) as i64 },
+                            ]);
+                        }
+                        ret.extend([
+                            Tcg::rv_arc(Tcg::SetDestGprPair { expr: self.ret }, Tcg::SetDestGpr { expr: self.ret }),
+                            Tcg::Ret,
+                        ]);
+                        ret
+                    }
                     FPType(llvm_ir::types::FPType::Double) => vec![
                         Tcg::MovI64 { ret: self.ret, arg: self.name_to_handler(name) },
                         Tcg::SetDestFprD { expr: self.ret },
@@ -123,12 +149,22 @@ impl<'a> Processor<'a> {
                     _ => todo!(),
                 },
                 Some(ConstantOperand(constant)) => match constant.as_ref() {
-                    llvm_ir::Constant::Int { bits, value } => vec![
-                        Tcg::MoviI64 { ret: self.ret, arg: *value as i64 },
-                        Tcg::ExtactI64 { ret: self.ret, arg: self.ret, pos: 0, len: *bits },
-                        Tcg::SetDestGpr { expr: self.ret },
-                        Tcg::Ret,
-                    ],
+                    llvm_ir::Constant::Int { bits, value } => match bits {
+                        0..=32 => vec![
+                            Tcg::rv_arc(
+                                Tcg::MoviI32 { ret: self.ret, arg: *value as i32 },
+                                Tcg::MoviI64 { ret: self.ret, arg: *value as i64 },
+                            ),
+                            Tcg::SetDestGpr { expr: self.ret },
+                            Tcg::Ret,
+                        ],
+                        33..=64 => vec![
+                            Tcg::MoviI64 { ret: self.ret, arg: *value as i64 },
+                            Tcg::rv_arc(Tcg::SetDestGprPair { expr: self.ret }, Tcg::SetDestGpr { expr: self.ret }),
+                            Tcg::Ret,
+                        ],
+                        _ => todo!(),
+                    },
                     llvm_ir::Constant::Float(llvm_ir::constant::Float::Single(single)) => vec![
                         Tcg::MoviI64 { ret: self.ret, arg: single.to_bits() as i64 },
                         Tcg::SetDestFprHs { expr: self.ret },
@@ -160,6 +196,12 @@ impl<'a> Processor<'a> {
             self.symbol_table.borrow_mut().insert(para_handler, para_type);
             self.symbol_table_2.borrow_mut().insert(parameter.name.clone(), para_handler);
             self.parameters.push(para_handler);
+        }
+
+        for attr in func.return_attributes.iter() {
+            if matches!(attr, ParameterAttribute::ZeroExt | ParameterAttribute::SignExt) {
+                self.ret_attr = Some(attr.clone())
+            }
         }
 
         for block in func.basic_blocks.iter() {

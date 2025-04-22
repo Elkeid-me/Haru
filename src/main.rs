@@ -49,20 +49,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut processor = process::Processor::new(&module);
     let result = processor.process_func(op_function);
 
+    let ret_handler = processor.ret;
+
     writeln!(f, "static bool trans_{func_name}(DisasContext *ctx, arg_{func_name} *a)",)?;
     writeln!(f, "{{")?;
-    writeln!(f, "#ifndef TARGET_RISCV32")?;
     let mut arg_cnt = 1;
     for handler in processor.parameters.iter() {
         match processor.symbol_table.borrow().get(handler).unwrap().as_ref() {
             llvm_ir::Type::IntegerType { bits: 0..=32 } => {
+                writeln!(f, "#ifdef TARGET_RISCV32")?;
+                writeln!(f, "TCGv_i32 val_{handler} = get_gpr(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
+                writeln!(f, "#else")?;
                 writeln!(f, "TCGv_i64 rs_{arg_cnt} = get_gpr(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
                 writeln!(f, "TCGv_i32 val_{handler} = tcg_temp_new_i32();")?;
                 writeln!(f, "tcg_gen_extrl_i64_i32(val_{handler}, rs_{arg_cnt});")?;
+                writeln!(f, "#endif")?;
                 arg_cnt += 1;
             }
             llvm_ir::Type::IntegerType { bits: 0..=64 } => {
+                writeln!(f, "#ifdef TARGET_RISCV32")?;
+                writeln!(f, "TCGv_i64 val_{handler} = get_gpr_pair(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
+                writeln!(f, "#else")?;
                 writeln!(f, "TCGv_i64 val_{handler} = get_gpr(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
+                writeln!(f, "#endif")?;
                 arg_cnt += 1;
             }
             llvm_ir::Type::FPType(llvm_ir::types::FPType::Single) => {
@@ -77,8 +86,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    match processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
+        llvm_ir::Type::IntegerType { bits: 0..=32 } => {
+            writeln!(f, "#ifdef TARGET_RISCV32")?;
+            writeln!(f, "TCGv_i32 val_{ret_handler} = tcg_temp_new_i32();")?;
+            writeln!(f, "#else")?;
+            writeln!(f, "TCGv_i64 val_{ret_handler} = tcg_temp_new_i64();")?;
+            writeln!(f, "#endif")?;
+        }
+        llvm_ir::Type::IntegerType { bits: 33..=64 }
+        | llvm_ir::Type::FPType(llvm_ir::types::FPType::Double)
+        | llvm_ir::Type::FPType(llvm_ir::types::FPType::Single) => writeln!(f, "TCGv_i64 val_{ret_handler} = tcg_temp_new_i64();")?,
+        _ => todo!(),
+    }
+
     for (handler, ty) in processor.symbol_table.borrow().iter() {
-        if !processor.parameters.contains(handler) {
+        if !processor.parameters.contains(handler) && *handler != ret_handler {
             match ty.as_ref() {
                 llvm_ir::Type::IntegerType { bits: 0..=32 } => writeln!(f, "TCGv_i32 val_{handler} = tcg_temp_new_i32();")?,
 
@@ -95,8 +118,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for i in result {
         writeln!(f, "{i}")?;
     }
-    writeln!(f, "#endif")?;
-    writeln!(f, "return true;")?;
     writeln!(f, "}}")?;
     Ok(())
 }

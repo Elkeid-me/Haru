@@ -158,9 +158,12 @@ pub enum Tcg {
     FdivD{ ret: Handler, arg_1: Handler, arg_2: Handler },
 
     SetDestGpr { expr: Handler },
+    SetDestGprPair { expr: Handler },
     SetDestFprHs { expr: Handler },
     SetDestFprD { expr: Handler },
     Ret,
+
+    RVArc { rv_32: Option<Box<Tcg>>, rv_64: Option<Box<Tcg>> }
 }
 
 impl Display for Tcg {
@@ -302,9 +305,23 @@ impl Display for Tcg {
             Self::FdivD { ret, arg_1, arg_2 } => write!(f, "gen_helper_fdiv_d(val_{ret}, tcg_env, val_{arg_1}, val_{arg_2});"),
 
             Self::SetDestGpr { expr } => write!(f, "gen_set_gpr(ctx, a->rd, val_{expr});"),
+            Self::SetDestGprPair { expr } => write!(f, "gen_set_gpr_pair(ctx, a->rd, val_{expr});"),
             Self::SetDestFprHs { expr } => write!(f, "gen_set_fpr_hs(ctx, a->rd, val_{expr});"),
             Self::SetDestFprD { expr } => write!(f, "gen_set_fpr_d(ctx, a->rd, val_{expr});"),
             Self::Ret => write!(f, "return true;"),
+
+            Self::RVArc { rv_32, rv_64 } => match (rv_32, rv_64) {
+                (Some(rv_32), Some(rv_64)) => write!(f, "#ifdef TARGET_RISCV32\n{rv_32}\n#else\n{rv_64}\n#endif"),
+                (Some(rv_32), None) => write!(f, "#ifdef TARGET_RISCV32\n{rv_32}\n#endif"),
+                (None, Some(rv_64)) => write!(f, "#ifndef TARGET_RISCV32\n{rv_64}\n#endif"),
+                (None, None) => unreachable!(),
+            },
         }
+    }
+}
+
+impl Tcg {
+    pub fn rv_arc(rv_32: Tcg, rv_64: Tcg) -> Self {
+        Self::RVArc { rv_32: Some(Box::new(rv_32)), rv_64: Some(Box::new(rv_64)) }
     }
 }
