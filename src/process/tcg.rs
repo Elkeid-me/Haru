@@ -18,20 +18,9 @@ pub enum Tcg {
     MuliI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
     MulI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
-    DivfiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
-    DiviI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
     DivI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
-
-    DivufiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
-    DivuiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
     DivuI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
-
-    RemfiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
-    RemiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
     RemI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
-
-    RemufiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
-    RemuiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
     RemuI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
     AndiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
@@ -62,20 +51,9 @@ pub enum Tcg {
     MuliI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
     MulI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
-    DivfiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
-    DiviI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
     DivI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
-
-    DivufiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
-    DivuiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
     DivuI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
-
-    RemfiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
-    RemiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
     RemI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
-
-    RemufiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
-    RemuiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
     RemuI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
     AndiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
@@ -181,20 +159,9 @@ impl Display for Tcg {
             Self::MuliI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_muli_i32(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::MulI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_mul_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
 
-            Self::DivfiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_divfi_i32(val_{ret}, {arg_2}, val_{arg_1});"),
-            Self::DiviI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_divi_i32(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::DivI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_div_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
-
-            Self::DivufiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_divufi_i32(val_{ret}, {arg_2}, val_{arg_1});"),
-            Self::DivuiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_divui_i32(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::DivuI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_divu_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
-
-            Self::RemfiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_remfi_i32(val_{ret}, {arg_2}, val_{arg_1});"),
-            Self::RemiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_remi_i32(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::RemI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_rem_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
-
-            Self::RemufiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_remufi_i32(val_{ret}, {arg_2}, val_{arg_1});"),
-            Self::RemuiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_remui_i32(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::RemuI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_remu_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
 
             Self::AndiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_andi_i32(val_{ret}, val_{arg_1}, {arg_2});"),
@@ -225,20 +192,9 @@ impl Display for Tcg {
             Self::MuliI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_muli_i64(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::MulI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_mul_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
 
-            Self::DivfiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_divfi_i64(val_{ret}, {arg_2}, val_{arg_1});"),
-            Self::DiviI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_divi_i64(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::DivI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_div_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
-
-            Self::DivufiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_divufi_i64(val_{ret}, {arg_2}, val_{arg_1});"),
-            Self::DivuiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_divui_i64(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::DivuI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_divu_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
-
-            Self::RemfiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_remfi_i64(val_{ret}, {arg_2}, val_{arg_1});"),
-            Self::RemiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_remi_i64(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::RemI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_rem_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
-
-            Self::RemufiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_remufi_i64(val_{ret}, {arg_2}, val_{arg_1});"),
-            Self::RemuiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_remui_i64(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::RemuI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_remu_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
 
             Self::AndiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_andi_i64(val_{ret}, val_{arg_1}, {arg_2});"),
