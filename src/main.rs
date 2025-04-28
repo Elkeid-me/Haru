@@ -17,7 +17,10 @@ pub struct Args {
     /// 指定函数名。
     #[arg(short, long, default_value_t = String::from_str("op").unwrap())]
     func: String,
-    /// 指定输出文件名，不指定时将输出到 `1.c`。
+    /// 指定输出指令名，不指定时与输入函数同名
+    #[arg(short, long)]
+    inst: Option<String>,
+    /// 指定输出文件名，不指定时将输出到 `trans_<INST>.c`。
     #[arg(short, long)]
     output: Option<std::path::PathBuf>,
     input: std::path::PathBuf,
@@ -44,15 +47,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => panic!("没有找到名为 `{func_name}` 的函数",),
     };
 
-    let mut f = File::create(args.output.unwrap_or(std::path::PathBuf::from("1.c")))?;
+    let inst = args.inst.unwrap_or(func_name.to_string());
+    let mut f = File::create(args.output.unwrap_or(std::path::PathBuf::from(format!("trans_{inst}.c"))))?;
 
     let mut processor = process::Processor::new(&module);
     let result = processor.process_func(op_function);
 
     let ret_handler = processor.ret;
 
-    writeln!(f, "static bool trans_{func_name}(DisasContext *ctx, arg_{func_name} *a)",)?;
+    writeln!(f, "static bool trans_{inst}(DisasContext *ctx, arg_{inst} *a)",)?;
     writeln!(f, "{{")?;
+    writeln!(f, "#ifndef TARGET_RISCV32")?;
     let mut arg_cnt = 1;
     for handler in processor.parameters.iter() {
         match processor.symbol_table.borrow().get(handler).unwrap().as_ref() {
@@ -86,7 +91,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    match processor.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
+    match &op_function.return_type.as_ref() {
         llvm_ir::Type::IntegerType { bits: 0..=32 } => {
             writeln!(f, "#ifdef TARGET_RISCV32")?;
             writeln!(f, "TCGv_i32 val_{ret_handler} = tcg_temp_new_i32();")?;
@@ -96,7 +101,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         llvm_ir::Type::IntegerType { bits: 33..=64 }
         | llvm_ir::Type::FPType(llvm_ir::types::FPType::Double)
-        | llvm_ir::Type::FPType(llvm_ir::types::FPType::Single) => writeln!(f, "TCGv_i64 val_{ret_handler} = tcg_temp_new_i64();")?,
+        | llvm_ir::Type::FPType(llvm_ir::types::FPType::Single) => {
+            writeln!(f, "TCGv_i64 val_{ret_handler} = tcg_temp_new_i64();")?
+        }
         _ => todo!(),
     }
 
@@ -118,6 +125,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for i in result {
         writeln!(f, "{i}")?;
     }
+    writeln!(f, "#endif")?;
+    writeln!(f, "return true;")?;
     writeln!(f, "}}")?;
     Ok(())
 }

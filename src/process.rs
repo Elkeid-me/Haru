@@ -93,7 +93,7 @@ impl<'a> Processor<'a> {
                 ZExt(zext) => self.zext(zext),
                 SExt(sext) => self.sext(sext),
                 Trunc(trunc) => self.trunc(trunc),
-                _ => vec![],
+                _ => todo!(),
             })
             .flatten()
             .collect::<Vec<_>>();
@@ -173,6 +173,14 @@ impl<'a> Processor<'a> {
                     llvm_ir::Constant::Float(llvm_ir::constant::Float::Double(double)) => vec![
                         Tcg::MoviI64 { ret: self.ret, arg: double.to_bits() as i64 },
                         Tcg::SetDestFprD { expr: self.ret },
+                        Tcg::Ret,
+                    ],
+                    llvm_ir::Constant::Poison(_) => vec![
+                        Tcg::rv_arc(
+                            Tcg::MoviI32 { ret: self.ret, arg: 0 },
+                            Tcg::MoviI64 { ret: self.ret, arg: 0 },
+                        ),
+                        Tcg::SetDestGpr { expr: self.ret },
                         Tcg::Ret,
                     ],
                     _ => todo!(),
