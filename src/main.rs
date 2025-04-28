@@ -23,6 +23,9 @@ pub struct Args {
     /// 指定输出文件名，不指定时将输出到 `trans_<INST>.c`。
     #[arg(short, long)]
     output: Option<std::path::PathBuf>,
+    /// 指定 `opcode`。
+    #[arg(short, long, default_value_t = String::from_str("0011111").unwrap())]
+    code: String,
     input: std::path::PathBuf,
 }
 
@@ -48,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let inst = args.inst.unwrap_or(func_name.to_string());
-    let mut f = File::create(args.output.unwrap_or(std::path::PathBuf::from(format!("trans_{inst}.c"))))?;
+    let mut f = File::create(args.output.as_ref().unwrap_or(&std::path::PathBuf::from(format!("trans_{inst}.c"))))?;
 
     let mut processor = process::Processor::new(&module);
     let result = processor.process_func(op_function);
@@ -59,6 +62,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     writeln!(f, "{{")?;
     writeln!(f, "#ifndef TARGET_RISCV32")?;
     let mut arg_cnt = 1;
+    let mut int_arg_code = 10u32;
+    let mut fp_arg_code = 10u32;
+    let mut args_code = Vec::new();
     for handler in processor.parameters.iter() {
         match processor.symbol_table.borrow().get(handler).unwrap().as_ref() {
             llvm_ir::Type::IntegerType { bits: 0..=32 } => {
@@ -70,6 +76,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 writeln!(f, "tcg_gen_extrl_i64_i32(val_{handler}, rs_{arg_cnt});")?;
                 writeln!(f, "#endif")?;
                 arg_cnt += 1;
+                args_code.push(int_arg_code);
+                int_arg_code += 1;
             }
             llvm_ir::Type::IntegerType { bits: 0..=64 } => {
                 writeln!(f, "#ifdef TARGET_RISCV32")?;
@@ -78,14 +86,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 writeln!(f, "TCGv_i64 val_{handler} = get_gpr(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
                 writeln!(f, "#endif")?;
                 arg_cnt += 1;
+                args_code.push(int_arg_code);
+                int_arg_code += 1;
             }
             llvm_ir::Type::FPType(llvm_ir::types::FPType::Single) => {
                 writeln!(f, "TCGv_i64 val_{handler} = get_fpr_hs(ctx, a->rs{arg_cnt});")?;
                 arg_cnt += 1;
+                args_code.push(fp_arg_code);
+                fp_arg_code += 1;
             }
             llvm_ir::Type::FPType(llvm_ir::types::FPType::Double) => {
                 writeln!(f, "TCGv_i64 val_{handler} = get_fpr_d(ctx, a->rs{arg_cnt});")?;
                 arg_cnt += 1;
+                args_code.push(fp_arg_code);
+                fp_arg_code += 1;
             }
             _ => todo!(),
         }
@@ -122,11 +136,60 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
+
+    if processor.use_float {
+        writeln!(f, "gen_set_rm(ctx, a->rm);")?;
+    }
+
     for i in result {
         writeln!(f, "{i}")?;
     }
     writeln!(f, "#endif")?;
     writeln!(f, "return true;")?;
     writeln!(f, "}}")?;
+
+    let mut f2 = File::create(args.output.as_ref().unwrap_or(&std::path::PathBuf::from(format!("{inst}.decode"))))?;
+
+    // 0011111, 0101011, 0111111, 1011111, 1111111
+
+    match processor.parameters.len() {
+        0 => {
+            if processor.use_float {
+                writeln!(f2, "{inst} 000000000000 ..... ... ..... {} @r2_rm", args.code)?
+            } else {
+                writeln!(f2, "{inst} .................... ..... {} @u", args.code)?
+            }
+        }
+        1 => {
+            if processor.use_float {
+                writeln!(f2, "{inst} 000000000000 ..... ... ..... {} @r2_rm", args.code)?
+            } else {
+                writeln!(f2, "{inst} ............ ..... 001 ..... {} @i", args.code)?
+            }
+        }
+        2 => {
+            if processor.use_float {
+                writeln!(f2, "{inst} 0000000 ..... ..... ... ..... {} @r_rm", args.code)?
+            } else {
+                writeln!(f2, "{inst} 0000000 ..... ..... 001 ..... {} @r", args.code)?
+            }
+        }
+        3 => writeln!(f2, "{inst} ..... 00 ..... ..... ... ..... {} @r4_rm", args.code)?,
+        _ => todo!(),
+    }
+
+    let mut f3 = File::create(args.output.as_ref().unwrap_or(&std::path::PathBuf::from(format!("instcode.h"))))?;
+    let inst_code = u32::from_str_radix(&args.code, 2).unwrap() | (10 << 7) | (1 << 12);
+    match processor.parameters.len() {
+        0 => writeln!(f3, "\"    .word {}\\n\"", inst_code)?,
+        1 => writeln!(f3, "\"    .word {}\\n\"", inst_code | (args_code[0] << 15))?,
+        2 => writeln!(f3, "\"    .word {}\\n\"", inst_code | (args_code[0] << 15) | (args_code[1] << 20))?,
+        3 => {
+            writeln!(f3, "\"    .word {}\\n\"", inst_code | (args_code[0] << 15) | (args_code[1] << 20) | (args_code[2] << 27))?
+        }
+        _ => todo!(),
+    }
+    writeln!(f3, "#define use_{func_name}")?;
+    writeln!(f3, "#define soft_op {func_name}")?;
     Ok(())
 }

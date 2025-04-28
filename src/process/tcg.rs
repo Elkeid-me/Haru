@@ -139,7 +139,7 @@ pub enum Tcg {
     SetDestGprPair { expr: Handler },
     SetDestFprHs { expr: Handler },
     SetDestFprD { expr: Handler },
-    Ret,
+    Ret { float: bool },
 
     RVArc { rv_32: Option<Box<Tcg>>, rv_64: Option<Box<Tcg>> }
 }
@@ -264,7 +264,7 @@ impl Display for Tcg {
             Self::SetDestGprPair { expr } => write!(f, "gen_set_gpr_pair(ctx, a->rd, val_{expr});"),
             Self::SetDestFprHs { expr } => write!(f, "gen_set_fpr_hs(ctx, a->rd, val_{expr});"),
             Self::SetDestFprD { expr } => write!(f, "gen_set_fpr_d(ctx, a->rd, val_{expr});"),
-            Self::Ret => write!(f, "return true;"),
+            Self::Ret { float } => if *float { write!(f, "mark_fs_dirty(ctx);\nreturn true;") } else { write!(f, "return true;") },
 
             Self::RVArc { rv_32, rv_64 } => match (rv_32, rv_64) {
                 (Some(rv_32), Some(rv_64)) => write!(f, "#ifdef TARGET_RISCV32\n{rv_32}\n#else\n{rv_64}\n#endif"),
