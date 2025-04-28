@@ -4,15 +4,15 @@ use llvm_ir::Constant;
 use llvm_ir::instruction::{AShr, Add, And, LShr, Mul, Or, SDiv, SRem, Shl, Sub, UDiv, URem, Xor};
 use llvm_ir::{Operand::*, Type::*, instruction::BinaryOp, instruction::HasResult};
 
-fn sign_extend_const(original_bits: u64, n_bits: u32) -> i64 {
+pub fn sign_extend_const(original_bits: u64, n_bits: u32) -> i64 {
     (original_bits as i64) << (64 - n_bits) >> (64 - n_bits)
 }
 
-fn extract_const_i64(original: i64, n_bits: u32) -> i64 {
+pub fn extract_const_i64(original: i64, n_bits: u32) -> i64 {
     original & ((0xffff_ffff_ffff_ffffu64 >> (64 - n_bits)) as i64)
 }
 
-fn extract_const_u64(original: u64, n_bits: u32) -> i64 {
+pub fn extract_const_u64(original: u64, n_bits: u32) -> i64 {
     (original & (0xffff_ffff_ffff_ffffu64 >> (64 - n_bits))) as i64
 }
 

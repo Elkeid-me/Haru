@@ -1,4 +1,5 @@
 use super::Processor;
+use super::int_op::{extract_const_i64, sign_extend_const};
 use super::tcg::Tcg::{self, *};
 use llvm_ir::instruction::{FPExt, FPToSI, FPToUI, FPTrunc, SExt, SIToFP, Trunc, UIToFP, UnaryOp, ZExt};
 use llvm_ir::types::Types;
@@ -14,28 +15,68 @@ impl Processor<'_> {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
                 match (ty.as_ref(), r_ty.as_ref()) {
-                    (FPType(FPType::Double), IntegerType { bits: 0..=32 }) => {
+                    (FPType(FPType::Double), IntegerType { bits }) if matches!(bits, 0..32) => {
+                        self.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&self.module.types));
+                        vec![
+                            FcvtWD { ret: tmp_handler, arg: v_handler },
+                            ExtrlI64I32 { ret: r_handler, arg: tmp_handler },
+                            ShliI32 { ret: r_handler, arg_1: r_handler, arg_2: (32 - bits) as i32 },
+                            SariI32 { ret: r_handler, arg_1: r_handler, arg_2: (32 - bits) as i32 },
+                        ]
+                    }
+                    (FPType(FPType::Double), IntegerType { bits: 32 }) => {
                         self.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&self.module.types));
                         vec![FcvtWD { ret: tmp_handler, arg: v_handler }, ExtrlI64I32 { ret: r_handler, arg: tmp_handler }]
                     }
-                    (FPType(FPType::Double), IntegerType { bits: 33..=64 }) => vec![FcvtLD { ret: r_handler, arg: v_handler }],
-                    (FPType(FPType::Single), IntegerType { bits: 0..=32 }) => {
+                    (FPType(FPType::Double), IntegerType { bits }) if matches!(bits, 33..64) => vec![
+                        FcvtLD { ret: r_handler, arg: v_handler },
+                        ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                        SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                    ],
+                    (FPType(FPType::Double), IntegerType { bits: 64 }) => vec![FcvtLD { ret: r_handler, arg: v_handler }],
+                    (FPType(FPType::Single), IntegerType { bits }) if matches!(bits, 0..32) => {
+                        self.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&self.module.types));
+                        vec![
+                            FcvtWS { ret: tmp_handler, arg: v_handler },
+                            ExtrlI64I32 { ret: r_handler, arg: tmp_handler },
+                            ShliI32 { ret: r_handler, arg_1: r_handler, arg_2: (32 - bits) as i32 },
+                            SariI32 { ret: r_handler, arg_1: r_handler, arg_2: (32 - bits) as i32 },
+                        ]
+                    }
+                    (FPType(FPType::Single), IntegerType { bits: 32 }) => {
                         self.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&self.module.types));
                         vec![FcvtWS { ret: tmp_handler, arg: v_handler }, ExtrlI64I32 { ret: r_handler, arg: tmp_handler }]
                     }
-                    (FPType(FPType::Single), IntegerType { bits: 33..=64 }) => vec![FcvtLS { ret: r_handler, arg: v_handler }],
+                    (FPType(FPType::Single), IntegerType { bits }) if matches!(bits, 33..64) => vec![
+                        FcvtLS { ret: r_handler, arg: v_handler },
+                        ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                        SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                    ],
+                    (FPType(FPType::Single), IntegerType { bits: 64 }) => vec![FcvtLS { ret: r_handler, arg: v_handler }],
                     _ => todo!(),
                 }
             }
             ConstantOperand(constant) => match constant.as_ref() {
                 Constant::Float(Float::Double(double)) => match r_ty.as_ref() {
-                    IntegerType { bits: 0..=32 } => vec![MoviI32 { ret: r_handler, arg: *double as i32 }],
-                    IntegerType { bits: 33..=64 } => vec![MoviI64 { ret: r_handler, arg: *double as i64 }],
+                    IntegerType { bits } if matches!(bits, 0..=32) => vec![MoviI32 {
+                        ret: r_handler,
+                        arg: sign_extend_const(extract_const_i64(*double as i64, *bits) as u64, *bits) as i32,
+                    }],
+                    IntegerType { bits } if matches!(bits, 33..=64) => vec![MoviI64 {
+                        ret: r_handler,
+                        arg: sign_extend_const(extract_const_i64(*double as i64, *bits) as u64, *bits),
+                    }],
                     _ => todo!(),
                 },
                 Constant::Float(Float::Single(single)) => match r_ty.as_ref() {
-                    IntegerType { bits: 0..=32 } => vec![MoviI32 { ret: r_handler, arg: *single as i32 }],
-                    IntegerType { bits: 33..=64 } => vec![MoviI64 { ret: r_handler, arg: *single as i64 }],
+                    IntegerType { bits } if matches!(bits, 0..=32) => vec![MoviI32 {
+                        ret: r_handler,
+                        arg: sign_extend_const(extract_const_i64(*single as i64, *bits) as u64, *bits) as i32,
+                    }],
+                    IntegerType { bits } if matches!(bits, 33..=64) => vec![MoviI64 {
+                        ret: r_handler,
+                        arg: sign_extend_const(extract_const_i64(*single as i64, *bits) as u64, *bits),
+                    }],
                     _ => todo!(),
                 },
                 _ => todo!(),
@@ -52,28 +93,59 @@ impl Processor<'_> {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
                 match (ty.as_ref(), r_ty.as_ref()) {
-                    (FPType(FPType::Double), IntegerType { bits: 0..=32 }) => {
+                    (FPType(FPType::Double), IntegerType { bits }) if matches!(bits, 0..32) => {
+                        self.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&self.module.types));
+                        vec![
+                            FcvtWuD { ret: tmp_handler, arg: v_handler },
+                            ExtrlI64I32 { ret: r_handler, arg: tmp_handler },
+                            ExtactI32 { ret: r_handler, arg: r_handler, pos: 0, len: *bits },
+                        ]
+                    }
+                    (FPType(FPType::Double), IntegerType { bits: 32 }) => {
                         self.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&self.module.types));
                         vec![FcvtWuD { ret: tmp_handler, arg: v_handler }, ExtrlI64I32 { ret: r_handler, arg: tmp_handler }]
                     }
-                    (FPType(FPType::Double), IntegerType { bits: 33..=64 }) => vec![FcvtLuD { ret: r_handler, arg: v_handler }],
-                    (FPType(FPType::Single), IntegerType { bits: 0..=32 }) => {
+                    (FPType(FPType::Double), IntegerType { bits }) if matches!(bits, 33..=64) => vec![
+                        FcvtLuD { ret: r_handler, arg: v_handler },
+                        ExtactI64 { ret: r_handler, arg: r_handler, pos: 0, len: *bits },
+                    ],
+                    (FPType(FPType::Single), IntegerType { bits }) if matches!(bits, 0..32) => {
+                        self.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&self.module.types));
+                        vec![
+                            FcvtWuS { ret: tmp_handler, arg: v_handler },
+                            ExtrlI64I32 { ret: r_handler, arg: tmp_handler },
+                            ExtactI32 { ret: r_handler, arg: r_handler, pos: 0, len: *bits },
+                        ]
+                    }
+                    (FPType(FPType::Single), IntegerType { bits: 32 }) => {
                         self.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&self.module.types));
                         vec![FcvtWuS { ret: tmp_handler, arg: v_handler }, ExtrlI64I32 { ret: r_handler, arg: tmp_handler }]
                     }
-                    (FPType(FPType::Single), IntegerType { bits: 33..=64 }) => vec![FcvtLuS { ret: r_handler, arg: v_handler }],
+                    (FPType(FPType::Single), IntegerType { bits }) if matches!(bits, 33..64) => vec![
+                        FcvtLuS { ret: r_handler, arg: v_handler },
+                        ExtactI64 { ret: r_handler, arg: r_handler, pos: 0, len: *bits },
+                    ],
+                    (FPType(FPType::Single), IntegerType { bits: 64 }) => vec![FcvtLuS { ret: r_handler, arg: v_handler }],
                     _ => todo!(),
                 }
             }
             ConstantOperand(constant) => match constant.as_ref() {
                 Constant::Float(Float::Double(double)) => match r_ty.as_ref() {
-                    IntegerType { bits: 0..=32 } => vec![MoviI32 { ret: r_handler, arg: *double as i32 }],
-                    IntegerType { bits: 33..=64 } => vec![MoviI64 { ret: r_handler, arg: *double as i64 }],
+                    IntegerType { bits } if matches!(bits, 0..=32) => {
+                        vec![MoviI32 { ret: r_handler, arg: extract_const_i64(*double as i64, *bits) as i32 }]
+                    }
+                    IntegerType { bits } if matches!(bits, 33..=64) => {
+                        vec![MoviI64 { ret: r_handler, arg: extract_const_i64(*double as i64, *bits) }]
+                    }
                     _ => todo!(),
                 },
                 Constant::Float(Float::Single(single)) => match r_ty.as_ref() {
-                    IntegerType { bits: 0..=32 } => vec![MoviI32 { ret: r_handler, arg: *single as i32 }],
-                    IntegerType { bits: 33..=64 } => vec![MoviI64 { ret: r_handler, arg: *single as i64 }],
+                    IntegerType { bits } if matches!(bits, 0..=32) => {
+                        vec![MoviI32 { ret: r_handler, arg: extract_const_i64(*single as i64, *bits) as i32 }]
+                    }
+                    IntegerType { bits } if matches!(bits, 33..=64) => {
+                        vec![MoviI64 { ret: r_handler, arg: extract_const_i64(*single as i64, *bits) }]
+                    }
                     _ => todo!(),
                 },
                 _ => todo!(),
@@ -97,7 +169,7 @@ impl Processor<'_> {
                     ],
                     (IntegerType { bits }, FPType(FPType::Single)) if matches!(bits, 0..32) => vec![
                         ExtuI32I64 { ret: r_handler, arg: v_handler },
-                        ShliI64 { ret: r_handler, arg_1: v_handler, arg_2: (64 - bits) as i64 },
+                        ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
                         SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
                         FcvtSW { ret: r_handler, arg: r_handler },
                     ],
@@ -263,14 +335,12 @@ impl Processor<'_> {
                 }
             }
             ConstantOperand(constant) => match (constant.as_ref(), ret_bits) {
-                (Constant::Int { bits, value }, 0..=32) => vec![MoviI32 {
-                    ret: ret_handler,
-                    arg: (*value as i32) << (32 - *bits) >> (32 - *bits),
-                }],
-                (Constant::Int { bits, value }, 33..=64) => vec![MoviI64 {
-                    ret: ret_handler,
-                    arg: (*value as i64) << (64 - *bits) >> (64 - *bits),
-                }],
+                (Constant::Int { bits, value }, 0..=32) => {
+                    vec![MoviI32 { ret: ret_handler, arg: (*value as i32) << (32 - *bits) >> (32 - *bits) }]
+                }
+                (Constant::Int { bits, value }, 33..=64) => {
+                    vec![MoviI64 { ret: ret_handler, arg: (*value as i64) << (64 - *bits) >> (64 - *bits) }]
+                }
                 _ => todo!(),
             },
             _ => todo!(),
