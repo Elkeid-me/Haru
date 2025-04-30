@@ -16,7 +16,7 @@ template <> struct int_selector<1> { using type = std::uint8_t; };
 template <> struct int_selector<2> { using type = std::uint16_t; };
 template <> struct int_selector<4> { using type = std::uint32_t; };
 template <> struct int_selector<8> { using type = std::uint64_t; };
-template <std::size_t N> using int_selector_t = int_selector<N>::type;
+template <std::size_t N> using int_selector_t = typename int_selector<N>::type;
 // clang-format on
 
 template <typename To, typename From>
