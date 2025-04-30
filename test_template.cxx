@@ -26,6 +26,25 @@ To prepare_arg(From arg)
     return std::bit_cast<To>(static_cast<inter_type>(arg));
 }
 
+template <typename T>
+auto trans(T arg)
+{
+    return static_cast<std::conditional_t<
+        std::is_same_v<T, signed char> || std::is_same_v<T, unsigned char>, int, T>>(arg);
+}
+
+struct out
+{
+    template <typename T>
+    out &operator<<(const T &arg)
+    {
+        std::cout << trans(arg) << ' ';
+        return *this;
+    }
+};
+
+out o{};
+
 template <typename R, typename... Args, std::size_t... I>
 bool test_impl(R (*f)(Args...), R (*soft_f)(Args...), std::index_sequence<I...>)
 {
@@ -33,7 +52,8 @@ bool test_impl(R (*f)(Args...), R (*soft_f)(Args...), std::index_sequence<I...>)
     auto args{std::make_tuple(prepare_arg<std::tuple_element_t<I, std::tuple<Args...>>>(r())...)};
     auto op_out{std::apply(f, args)}, soft_op_out{std::apply(soft_f, args)};
 #ifdef print_result
-    std::cout << op_out << ", " << soft_op_out << '\n';
+    ((o << "args:") << ... << std::get<I>(args)) << '\n';
+    o << "   " << trans(op_out) << trans(soft_op_out) << '\n';
 #endif
     if constexpr (std::is_floating_point_v<R>)
         return std::abs(op_out - soft_op_out) < 1e-6;
