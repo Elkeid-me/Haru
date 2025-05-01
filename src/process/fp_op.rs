@@ -26,7 +26,7 @@ macro_rules! value_const {
                 $op_64 { ret: $ret_handler, arg_1: $v_handler, arg_2: $ret_handler },
             ],
             (FPType(FPType::Single), Constant::Float(Float::Single(single))) => vec![
-                MoviI64 { ret: $ret_handler, arg: single.to_bits() as i64 },
+                MoviI64 { ret: $ret_handler, arg: (single.to_bits() as u64 | 0xffff_ffff_0000_0000) as i64 },
                 $op_32 { ret: $ret_handler, arg_1: $v_handler, arg_2: $ret_handler },
             ],
             _ => todo!(),
@@ -44,7 +44,7 @@ macro_rules! const_value {
                 $op_64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: $v_handler },
             ],
             (Constant::Float(Float::Single(single)), FPType(FPType::Single)) => vec![
-                MoviI64 { ret: $ret_handler, arg: single.to_bits() as i64 },
+                MoviI64 { ret: $ret_handler, arg: (single.to_bits() as u64 | 0xffff_ffff_0000_0000) as i64 },
                 $op_32 { ret: $ret_handler, arg_1: $ret_handler, arg_2: $v_handler },
             ],
             _ => todo!(),
@@ -63,7 +63,7 @@ macro_rules! two_const {
             (
                 Constant::Float(Float::Single(l)),
                 Constant::Float(Float::Single(r)),
-            ) => vec![MoviI64 { ret: $ret_handler, arg: (l $op r).to_bits() as i64 }],
+            ) => vec![MoviI64 { ret: $ret_handler, arg: ((l $op r).to_bits() as u64 | 0xffff_ffff_0000_0000) as i64 }],
             _ => todo!(),
         }}
     };

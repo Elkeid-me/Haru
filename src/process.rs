@@ -3,11 +3,10 @@ mod fp_op;
 mod int_op;
 mod tcg;
 
-use tcg::Tcg;
-
-use llvm_ir::{BasicBlock, Function, Instruction::*, Module, Name, Operand::*};
-use llvm_ir::{Terminator::*, Type::*, TypeRef, function::ParameterAttribute, types::Typed};
+use llvm_ir::{BasicBlock, Function, Instruction::*, Module, Name, Operand::*, Terminator::*};
+use llvm_ir::{Type::*, TypeRef, function::ParameterAttribute, types::Typed, types::Types};
 use std::{cell::RefCell, collections::HashMap};
+use tcg::Tcg;
 
 type Handler = u64;
 
@@ -36,9 +35,20 @@ pub struct Processor<'a> {
     basic_blocks: RefCell<HashMap<Name, Handler>>,
     ret_attr: Option<ParameterAttribute>,
     pub use_float: bool,
+    tmps: RefCell<[Option<Handler>; 8]>,
 }
 
 impl<'a> Processor<'a> {
+    #[inline]
+    pub fn get_tmp<const N: usize>(&self) -> Handler {
+        if matches!(self.tmps.borrow()[N - 1].as_ref(), None) {
+            let new_handler = self.new_handler();
+            self.tmps.borrow_mut()[N - 1] = Some(new_handler);
+            self.symbol_table.borrow_mut().insert(new_handler, Types::i64(&self.module.types));
+        }
+        self.tmps.borrow()[N - 1].unwrap()
+    }
+
     pub fn new_handler(&self) -> Handler {
         self.counter.borrow_mut().get()
     }
@@ -51,18 +61,18 @@ impl<'a> Processor<'a> {
         Self {
             counter: RefCell::new(Counter::new()),
             ret: 0,
-            symbol_table: RefCell::new(HashMap::new()),
-            symbol_table_2: RefCell::new(HashMap::new()),
+            symbol_table: RefCell::default(),
+            symbol_table_2: RefCell::default(),
             parameters: Vec::new(),
             module,
-            basic_blocks: RefCell::new(HashMap::new()),
+            basic_blocks: RefCell::default(),
             ret_attr: None,
             use_float: false,
+            tmps: RefCell::default(),
         }
     }
 
     fn process_basic_block(&self, block: &BasicBlock) -> Vec<Tcg> {
-        let mut result = vec![/*Tcg::Label(*self.basic_blocks.borrow().get(&block.name).unwrap())*/];
         let mut insts = block
             .instrs
             .iter()
@@ -84,7 +94,7 @@ impl<'a> Processor<'a> {
                 FSub(fsub) => self.fsub(fsub),
                 FMul(fmul) => self.fmul(fmul),
                 FDiv(fdiv) => self.fdiv(fdiv),
-                FRem(_frem) => todo!(),
+                FRem(frem) => self.frem(frem),
                 FNeg(fneg) => self.fneg(fneg),
                 FPToSI(fp_to_si) => self.fp_to_si(fp_to_si),
                 FPToUI(fp_to_ui) => self.fp_to_ui(fp_to_ui),
@@ -100,14 +110,13 @@ impl<'a> Processor<'a> {
             .flatten()
             .collect::<Vec<_>>();
 
-        result.append(&mut insts);
         let mut ret = match &block.term {
             Ret(r) => match &r.return_operand {
                 Some(LocalOperand { name, ty }) => match ty.as_ref() {
                     IntegerType { bits } if matches!(bits, 0..=32) => {
                         let mut ret = vec![Tcg::rv_arc(
-                            Tcg::MovI32 { ret: self.ret, arg: self.name_to_handler(name) },
-                            Tcg::ExtuI32I64 { ret: self.ret, arg: self.name_to_handler(name) },
+                            Tcg::ExtrlI64I32 { ret: self.ret, arg: self.name_to_handler(name) },
+                            Tcg::MovI64 { ret: self.ret, arg: self.name_to_handler(name) },
                         )];
                         if matches!(self.ret_attr, Some(ParameterAttribute::SignExt)) {
                             ret.extend([
@@ -145,6 +154,7 @@ impl<'a> Processor<'a> {
                     ],
                     FPType(llvm_ir::types::FPType::Single) => vec![
                         Tcg::MovI64 { ret: self.ret, arg: self.name_to_handler(name) },
+                        Tcg::OriI64 { ret: self.ret, arg_1: self.ret, arg_2: 0xffff_ffff_0000_0000u64 as i64 },
                         Tcg::SetDestFprHs { expr: self.ret },
                         Tcg::Ret { float: self.use_float },
                     ],
@@ -168,7 +178,7 @@ impl<'a> Processor<'a> {
                         _ => todo!(),
                     },
                     llvm_ir::Constant::Float(llvm_ir::constant::Float::Single(single)) => vec![
-                        Tcg::MoviI64 { ret: self.ret, arg: single.to_bits() as i64 },
+                        Tcg::MoviI64 { ret: self.ret, arg: (single.to_bits() as u64 | 0xffff_ffff_0000_0000) as i64 },
                         Tcg::SetDestFprHs { expr: self.ret },
                         Tcg::Ret { float: self.use_float },
                     ],
@@ -188,8 +198,8 @@ impl<'a> Processor<'a> {
             },
             _ => todo!(),
         };
-        result.append(&mut ret);
-        result
+        insts.append(&mut ret);
+        insts
     }
 
     pub fn process_func(&mut self, func: &Function) -> Vec<Tcg> {

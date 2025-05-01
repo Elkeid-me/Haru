@@ -69,11 +69,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match processor.symbol_table.borrow().get(handler).unwrap().as_ref() {
             llvm_ir::Type::IntegerType { bits: 0..=32 } => {
                 writeln!(f, "#ifdef TARGET_RISCV32")?;
-                writeln!(f, "TCGv_i32 val_{handler} = get_gpr(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
+                writeln!(f, "TCGv_i32 rs_{arg_cnt} = get_gpr(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
+                // TODO: 符号扩展/零扩展
                 writeln!(f, "#else")?;
-                writeln!(f, "TCGv_i64 rs_{arg_cnt} = get_gpr(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
-                writeln!(f, "TCGv_i32 val_{handler} = tcg_temp_new_i32();")?;
-                writeln!(f, "tcg_gen_extrl_i64_i32(val_{handler}, rs_{arg_cnt});")?;
+                writeln!(f, "TCGv_i64 val_{handler} = get_gpr(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
                 writeln!(f, "#endif")?;
                 arg_cnt += 1;
                 args_code.push(int_arg_code);
@@ -121,19 +120,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => todo!(),
     }
 
-    for (handler, ty) in processor.symbol_table.borrow().iter() {
+    for handler in processor.symbol_table.borrow().keys() {
         if !processor.parameters.contains(handler) && *handler != ret_handler {
-            match ty.as_ref() {
-                llvm_ir::Type::IntegerType { bits: 0..=32 } => writeln!(f, "TCGv_i32 val_{handler} = tcg_temp_new_i32();")?,
-
-                llvm_ir::Type::IntegerType { bits: 33..=64 }
-                | llvm_ir::Type::FPType(llvm_ir::types::FPType::Double)
-                | llvm_ir::Type::FPType(llvm_ir::types::FPType::Single) => {
-                    writeln!(f, "TCGv_i64 val_{handler} = tcg_temp_new_i64();")?
-                }
-
-                _ => todo!(),
-            }
+            writeln!(f, "TCGv_i64 val_{handler} = tcg_temp_new_i64();")?;
         }
     }
 
@@ -164,14 +153,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if processor.use_float {
                 writeln!(f2, "{inst} 000000000000 ..... ... ..... {} @r2_rm", args.code)?
             } else {
-                writeln!(f2, "{inst} ............ ..... 001 ..... {} @i", args.code)?
+                writeln!(f2, "{inst} ............ ..... 111 ..... {} @i", args.code)?
             }
         }
         2 => {
             if processor.use_float {
                 writeln!(f2, "{inst} 0000000 ..... ..... ... ..... {} @r_rm", args.code)?
             } else {
-                writeln!(f2, "{inst} 0000000 ..... ..... 001 ..... {} @r", args.code)?
+                writeln!(f2, "{inst} 0000000 ..... ..... 111 ..... {} @r", args.code)?
             }
         }
         3 => writeln!(f2, "{inst} ..... 00 ..... ..... ... ..... {} @r4_rm", args.code)?,
@@ -179,7 +168,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut f3 = File::create(args.output.as_ref().unwrap_or(&std::path::PathBuf::from(format!("instcode.h"))))?;
-    let inst_code = u32::from_str_radix(&args.code, 2).unwrap() | (10 << 7) | (1 << 12);
+    let inst_code = u32::from_str_radix(&args.code, 2).unwrap() | (10 << 7) | (7 << 12);
     match processor.parameters.len() {
         0 => writeln!(f3, "\"    .word {}\\n\"", inst_code)?,
         1 => writeln!(f3, "\"    .word {}\\n\"", inst_code | (args_code[0] << 15))?,

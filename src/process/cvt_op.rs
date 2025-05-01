@@ -1,79 +1,194 @@
-use super::Processor;
-use super::int_op::{extract_const_i64, sign_extend_const};
+use super::int_op::{extract_const_i64, extract_const_u64, sign_extend_const};
 use super::tcg::Tcg::{self, *};
+use super::{Handler, Processor};
 use llvm_ir::instruction::{FPExt, FPToSI, FPToUI, FPTrunc, SExt, SIToFP, Trunc, UIToFP, UnaryOp, ZExt};
-use llvm_ir::types::Types;
 use llvm_ir::{Constant, constant::Float, types::FPType};
 use llvm_ir::{Operand::*, Type::*, instruction::HasResult};
 
 impl Processor<'_> {
+    fn fp64_to_i64(&self, v_handler: Handler, r_handler: Handler) -> Vec<Tcg> {
+        let tmp_1 = self.get_tmp::<1>();
+        let tmp_2 = self.get_tmp::<2>();
+        let tmp_3 = self.get_tmp::<3>();
+        vec![
+            Tcg::ExtactI64 { ret: r_handler, arg: v_handler, pos: 0, len: 52 },
+            Tcg::OriI64 { ret: r_handler, arg_1: r_handler, arg_2: 1i64 << 52 }, // r_handler = frac
+            Tcg::ExtactI64 { ret: tmp_1, arg: v_handler, pos: 52, len: 11 },     // tmp_1 = exp
+            // ---
+            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 1075 }, // tmp_1 = 1075 - exp
+            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 63 },
+            Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_2, arg_2: u64::MAX as i64 },
+            Tcg::AndI64 { ret: tmp_2, arg_1: r_handler, arg_2: tmp_2 },
+            Tcg::ShrI64 { ret: tmp_2, arg_1: tmp_2, arg_2: tmp_1 }, // tmp_2 = 1075 - exp < 0 ? 0 : frac >> (1075 - exp)
+            // ---
+            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0 }, // tmp_1 = exp - 1075
+            Tcg::SariI64 { ret: tmp_3, arg_1: tmp_1, arg_2: 63 },
+            Tcg::XoriI64 { ret: tmp_3, arg_1: tmp_3, arg_2: u64::MAX as i64 },
+            Tcg::AndI64 { ret: tmp_3, arg_1: r_handler, arg_2: tmp_3 },
+            Tcg::ShlI64 { ret: tmp_1, arg_1: tmp_3, arg_2: tmp_1 }, // tmp_1 = frac << (exp - 1075)
+            // ---
+            Tcg::OrI64 { ret: r_handler, arg_1: tmp_1, arg_2: tmp_2 },
+            // ---
+            Tcg::SariI64 { ret: tmp_1, arg_1: v_handler, arg_2: 63 }, // sign
+            Tcg::XorI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_1 },
+            Tcg::ShriI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 63 },
+            Tcg::AddI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_2 },
+            // ---
+            // Out of range
+            Tcg::ExtactI64 { ret: tmp_3, arg: v_handler, pos: 52, len: 11 },
+            Tcg::SubfiI64 { ret: tmp_3, arg_1: tmp_3, arg_2: 1085 },
+            Tcg::SariI64 { ret: tmp_3, arg_1: tmp_3, arg_2: 63 }, // tmp_3 is cond
+            Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_1, arg_2: (u64::MAX >> 1) as i64 }, // `tmp_2` is `i64::MIN` or MAX`
+            Tcg::XorI64 { ret: tmp_2, arg_1: tmp_2, arg_2: r_handler },
+            Tcg::AndI64 { ret: tmp_2, arg_1: tmp_2, arg_2: tmp_3 },
+            Tcg::XorI64 { ret: r_handler, arg_1: tmp_2, arg_2: r_handler },
+            // ---
+            Tcg::ExtactI64 { ret: tmp_1, arg: v_handler, pos: 52, len: 11 },
+            Tcg::SubfiI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 1022 },
+            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 63 },
+            Tcg::AndI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_2 },
+            // ---
+            // NaN:
+            Tcg::ExtactI64 { ret: tmp_2, arg: v_handler, pos: 0, len: 52 },
+            Tcg::SubiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0x7ff },
+            Tcg::SariI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 63 },
+            Tcg::SubfiI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 0 },
+            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 63 },
+            Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_2, arg_2: u64::MAX as i64 },
+            Tcg::OrI64 { ret: tmp_1, arg_1: tmp_1, arg_2: tmp_2 }, // cond
+            Tcg::XoriI64 { ret: r_handler, arg_1: r_handler, arg_2: (u64::MAX >> 1) as i64 },
+            Tcg::AndI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_1 },
+            Tcg::XoriI64 { ret: r_handler, arg_1: r_handler, arg_2: (u64::MAX >> 1) as i64 },
+        ]
+    }
+
+    fn fp64_to_u64(&self, v_handler: Handler, r_handler: Handler) -> Vec<Tcg> {
+        let tmp_1 = self.get_tmp::<1>();
+        let tmp_2 = self.get_tmp::<2>();
+        let tmp_3 = self.get_tmp::<3>();
+        let tmp_4 = self.get_tmp::<4>();
+        vec![
+            Tcg::SariI64 { ret: tmp_4, arg_1: v_handler, arg_2: 63 },
+            Tcg::XoriI64 { ret: tmp_4, arg_1: tmp_4, arg_2: u64::MAX as i64 },
+            Tcg::AndI64 { ret: tmp_4, arg_1: tmp_4, arg_2: v_handler },
+            Tcg::ExtactI64 { ret: r_handler, arg: tmp_4, pos: 0, len: 52 },
+            Tcg::OriI64 { ret: r_handler, arg_1: r_handler, arg_2: 1i64 << 52 }, // r_handler = frac
+            Tcg::ExtactI64 { ret: tmp_1, arg: tmp_4, pos: 52, len: 11 },         // tmp_1 = exp
+            // ---
+            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 1075 }, // tmp_1 = 1075 - exp
+            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 63 },
+            Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_2, arg_2: u64::MAX as i64 },
+            Tcg::AndI64 { ret: tmp_2, arg_1: r_handler, arg_2: tmp_2 },
+            Tcg::ShrI64 { ret: tmp_2, arg_1: tmp_2, arg_2: tmp_1 }, // tmp_2 = 1075 - exp < 0 ? 0 : frac >> (1075 - exp)
+            // ---
+            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0 }, // tmp_1 = exp - 1075
+            Tcg::SariI64 { ret: tmp_3, arg_1: tmp_1, arg_2: 63 },
+            Tcg::XoriI64 { ret: tmp_3, arg_1: tmp_3, arg_2: u64::MAX as i64 },
+            Tcg::AndI64 { ret: tmp_3, arg_1: r_handler, arg_2: tmp_3 },
+            Tcg::ShlI64 { ret: tmp_1, arg_1: tmp_3, arg_2: tmp_1 }, // tmp_1 = frac << (exp - 1075)
+            // ---
+            Tcg::OrI64 { ret: r_handler, arg_1: tmp_1, arg_2: tmp_2 },
+            // ---
+            // Out of range
+            Tcg::ExtactI64 { ret: tmp_3, arg: tmp_4, pos: 52, len: 11 },
+            Tcg::SubfiI64 { ret: tmp_3, arg_1: tmp_3, arg_2: 1086 },
+            Tcg::SariI64 { ret: tmp_3, arg_1: tmp_3, arg_2: 63 }, // tmp_3 is cond
+            Tcg::XoriI64 { ret: tmp_2, arg_1: r_handler, arg_2: u64::MAX as i64 },
+            Tcg::AndI64 { ret: tmp_2, arg_1: tmp_2, arg_2: tmp_3 },
+            Tcg::XorI64 { ret: r_handler, arg_1: tmp_2, arg_2: r_handler },
+            // ---
+            Tcg::ExtactI64 { ret: tmp_1, arg: tmp_4, pos: 52, len: 11 },
+            Tcg::SubfiI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 1022 },
+            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 63 },
+            Tcg::AndI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_2 },
+            // ---
+            // NaN:
+            Tcg::ExtactI64 { ret: tmp_2, arg: tmp_4, pos: 0, len: 52 },
+            Tcg::SubiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0x7ff },
+            Tcg::SariI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 63 },
+            Tcg::SubfiI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 0 },
+            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 63 },
+            Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_2, arg_2: u64::MAX as i64 },
+            Tcg::OrI64 { ret: tmp_1, arg_1: tmp_1, arg_2: tmp_2 }, // cond
+            Tcg::XoriI64 { ret: r_handler, arg_1: r_handler, arg_2: (u64::MAX >> 1) as i64 },
+            Tcg::AndI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_1 },
+            Tcg::XoriI64 { ret: r_handler, arg_1: r_handler, arg_2: (u64::MAX >> 1) as i64 },
+        ]
+    }
+
     pub fn fp_to_si(&self, fp_to_si: &FPToSI) -> Vec<Tcg> {
         let r_handler = self.name_to_handler(fp_to_si.get_result());
         let r_ty = self.symbol_table.borrow().get(&r_handler).unwrap().clone();
-        let tmp_handler = self.new_handler();
         match fp_to_si.get_operand() {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
                 match (ty.as_ref(), r_ty.as_ref()) {
-                    (FPType(FPType::Double), IntegerType { bits }) if matches!(bits, 0..32) => {
-                        self.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&self.module.types));
-                        vec![
-                            FcvtWD { ret: tmp_handler, arg: v_handler },
-                            ExtrlI64I32 { ret: r_handler, arg: tmp_handler },
-                            ShliI32 { ret: r_handler, arg_1: r_handler, arg_2: (32 - bits) as i32 },
-                            SariI32 { ret: r_handler, arg_1: r_handler, arg_2: (32 - bits) as i32 },
-                        ]
+                    (FPType(FPType::Double), IntegerType { bits }) if matches!(bits, 0..=32) => {
+                        let mut ret = self.fp64_to_i64(v_handler, r_handler);
+                        let tmp_1 = self.get_tmp::<1>();
+                        ret.extend([
+                            MoviI64 { ret: tmp_1, arg: sign_extend_const(i32::MAX as u64, 32) },
+                            Tcg::SminI64 { ret: r_handler, arg_1: tmp_1, arg_2: r_handler },
+                            MoviI64 { ret: tmp_1, arg: sign_extend_const(i32::MIN as u64, 32) },
+                            Tcg::SmaxI64 { ret: r_handler, arg_1: tmp_1, arg_2: r_handler },
+                            ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                            SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                        ]);
+                        ret
                     }
-                    (FPType(FPType::Double), IntegerType { bits: 32 }) => {
-                        self.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&self.module.types));
-                        vec![FcvtWD { ret: tmp_handler, arg: v_handler }, ExtrlI64I32 { ret: r_handler, arg: tmp_handler }]
+                    (FPType(FPType::Double), IntegerType { bits }) if matches!(bits, 33..64) => {
+                        let mut ret = self.fp64_to_i64(v_handler, r_handler);
+                        ret.extend([
+                            ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                            SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                        ]);
+                        ret
                     }
-                    (FPType(FPType::Double), IntegerType { bits }) if matches!(bits, 33..64) => vec![
-                        FcvtLD { ret: r_handler, arg: v_handler },
-                        ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
-                        SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
-                    ],
-                    (FPType(FPType::Double), IntegerType { bits: 64 }) => vec![FcvtLD { ret: r_handler, arg: v_handler }],
-                    (FPType(FPType::Single), IntegerType { bits }) if matches!(bits, 0..32) => {
-                        self.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&self.module.types));
-                        vec![
-                            FcvtWS { ret: tmp_handler, arg: v_handler },
-                            ExtrlI64I32 { ret: r_handler, arg: tmp_handler },
-                            ShliI32 { ret: r_handler, arg_1: r_handler, arg_2: (32 - bits) as i32 },
-                            SariI32 { ret: r_handler, arg_1: r_handler, arg_2: (32 - bits) as i32 },
-                        ]
+                    (FPType(FPType::Double), IntegerType { bits: 64 }) => self.fp64_to_i64(v_handler, r_handler),
+                    (FPType(FPType::Single), IntegerType { bits }) if matches!(bits, 0..=32) => {
+                        let mut ret = vec![FcvtDS { ret: v_handler, arg: v_handler }];
+                        let tmp_1 = self.get_tmp::<1>();
+                        ret.extend(self.fp64_to_i64(v_handler, r_handler));
+                        ret.extend([
+                            FcvtSD { ret: v_handler, arg: v_handler },
+                            MoviI64 { ret: tmp_1, arg: sign_extend_const(i32::MAX as u64, 32) },
+                            Tcg::SminI64 { ret: r_handler, arg_1: tmp_1, arg_2: r_handler },
+                            MoviI64 { ret: tmp_1, arg: sign_extend_const(i32::MIN as u64, 32) },
+                            Tcg::SmaxI64 { ret: r_handler, arg_1: tmp_1, arg_2: r_handler },
+                            ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                            SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                        ]);
+                        ret
                     }
-                    (FPType(FPType::Single), IntegerType { bits: 32 }) => {
-                        self.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&self.module.types));
-                        vec![FcvtWS { ret: tmp_handler, arg: v_handler }, ExtrlI64I32 { ret: r_handler, arg: tmp_handler }]
+                    (FPType(FPType::Single), IntegerType { bits }) if matches!(bits, 33..64) => {
+                        let mut ret = vec![FcvtDS { ret: v_handler, arg: v_handler }];
+                        ret.extend(self.fp64_to_i64(v_handler, r_handler));
+                        ret.extend([
+                            FcvtSD { ret: v_handler, arg: v_handler },
+                            ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                            SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                        ]);
+                        ret
                     }
-                    (FPType(FPType::Single), IntegerType { bits }) if matches!(bits, 33..64) => vec![
-                        FcvtLS { ret: r_handler, arg: v_handler },
-                        ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
-                        SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
-                    ],
-                    (FPType(FPType::Single), IntegerType { bits: 64 }) => vec![FcvtLS { ret: r_handler, arg: v_handler }],
+                    (FPType(FPType::Single), IntegerType { bits: 64 }) => {
+                        let mut ret = vec![FcvtDS { ret: v_handler, arg: v_handler }];
+                        ret.extend(self.fp64_to_i64(v_handler, r_handler));
+                        ret.push(FcvtSD { ret: v_handler, arg: v_handler });
+                        ret
+                    }
                     _ => todo!(),
                 }
             }
             ConstantOperand(constant) => match constant.as_ref() {
                 Constant::Float(Float::Double(double)) => match r_ty.as_ref() {
-                    IntegerType { bits } if matches!(bits, 0..=32) => vec![MoviI32 {
-                        ret: r_handler,
-                        arg: sign_extend_const(extract_const_i64(*double as i64, *bits) as u64, *bits) as i32,
-                    }],
-                    IntegerType { bits } if matches!(bits, 33..=64) => vec![MoviI64 {
+                    IntegerType { bits } => vec![MoviI64 {
                         ret: r_handler,
                         arg: sign_extend_const(extract_const_i64(*double as i64, *bits) as u64, *bits),
                     }],
                     _ => todo!(),
                 },
                 Constant::Float(Float::Single(single)) => match r_ty.as_ref() {
-                    IntegerType { bits } if matches!(bits, 0..=32) => vec![MoviI32 {
-                        ret: r_handler,
-                        arg: sign_extend_const(extract_const_i64(*single as i64, *bits) as u64, *bits) as i32,
-                    }],
-                    IntegerType { bits } if matches!(bits, 33..=64) => vec![MoviI64 {
+                    IntegerType { bits } => vec![MoviI64 {
                         ret: r_handler,
                         arg: sign_extend_const(extract_const_i64(*single as i64, *bits) as u64, *bits),
                     }],
@@ -88,64 +203,63 @@ impl Processor<'_> {
     pub fn fp_to_ui(&self, fp_to_ui: &FPToUI) -> Vec<Tcg> {
         let r_handler = self.name_to_handler(fp_to_ui.get_result());
         let r_ty = self.symbol_table.borrow().get(&r_handler).unwrap().clone();
-        let tmp_handler = self.new_handler();
         match fp_to_ui.get_operand() {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
                 match (ty.as_ref(), r_ty.as_ref()) {
-                    (FPType(FPType::Double), IntegerType { bits }) if matches!(bits, 0..32) => {
-                        self.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&self.module.types));
-                        vec![
-                            FcvtWuD { ret: tmp_handler, arg: v_handler },
-                            ExtrlI64I32 { ret: r_handler, arg: tmp_handler },
-                            ExtactI32 { ret: r_handler, arg: r_handler, pos: 0, len: *bits },
-                        ]
+                    (FPType(FPType::Double), IntegerType { bits }) if matches!(bits, 0..=32) => {
+                        let mut ret = self.fp64_to_u64(v_handler, r_handler);
+                        let tmp_1 = self.get_tmp::<1>();
+                        ret.extend([
+                            MoviI64 { ret: tmp_1, arg: u32::MAX as i64 },
+                            UminI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_1 },
+                            ExtactI64 { ret: r_handler, arg: r_handler, pos: 0, len: *bits },
+                        ]);
+                        ret
                     }
-                    (FPType(FPType::Double), IntegerType { bits: 32 }) => {
-                        self.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&self.module.types));
-                        vec![FcvtWuD { ret: tmp_handler, arg: v_handler }, ExtrlI64I32 { ret: r_handler, arg: tmp_handler }]
+                    (FPType(FPType::Double), IntegerType { bits }) if matches!(bits, 33..64) => {
+                        let mut ret = self.fp64_to_u64(v_handler, r_handler);
+                        ret.push(ExtactI64 { ret: r_handler, arg: r_handler, pos: 0, len: *bits });
+                        ret
                     }
-                    (FPType(FPType::Double), IntegerType { bits }) if matches!(bits, 33..=64) => vec![
-                        FcvtLuD { ret: r_handler, arg: v_handler },
-                        ExtactI64 { ret: r_handler, arg: r_handler, pos: 0, len: *bits },
-                    ],
-                    (FPType(FPType::Single), IntegerType { bits }) if matches!(bits, 0..32) => {
-                        self.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&self.module.types));
-                        vec![
-                            FcvtWuS { ret: tmp_handler, arg: v_handler },
-                            ExtrlI64I32 { ret: r_handler, arg: tmp_handler },
-                            ExtactI32 { ret: r_handler, arg: r_handler, pos: 0, len: *bits },
-                        ]
+                    (FPType(FPType::Double), IntegerType { bits: 64 }) => self.fp64_to_u64(v_handler, r_handler),
+                    (FPType(FPType::Single), IntegerType { bits }) if matches!(bits, 0..=32) => {
+                        let mut ret = vec![FcvtDS { ret: v_handler, arg: v_handler }];
+                        ret.extend(self.fp64_to_u64(v_handler, r_handler));
+                        let tmp_1 = self.get_tmp::<1>();
+                        ret.extend([
+                            FcvtSD { ret: v_handler, arg: v_handler },
+                            MoviI64 { ret: tmp_1, arg: u32::MAX as i64 },
+                            UminI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_1 },
+                            ExtactI64 { ret: r_handler, arg: r_handler, pos: 0, len: *bits },
+                        ]);
+                        ret
                     }
-                    (FPType(FPType::Single), IntegerType { bits: 32 }) => {
-                        self.symbol_table.borrow_mut().insert(tmp_handler, Types::i64(&self.module.types));
-                        vec![FcvtWuS { ret: tmp_handler, arg: v_handler }, ExtrlI64I32 { ret: r_handler, arg: tmp_handler }]
+                    (FPType(FPType::Single), IntegerType { bits }) if matches!(bits, 33..64) => {
+                        let mut ret = vec![FcvtDS { ret: v_handler, arg: v_handler }];
+                        ret.extend(self.fp64_to_u64(v_handler, r_handler));
+                        ret.extend([
+                            FcvtSD { ret: v_handler, arg: v_handler },
+                            ExtactI64 { ret: r_handler, arg: r_handler, pos: 0, len: *bits },
+                        ]);
+                        ret
                     }
-                    (FPType(FPType::Single), IntegerType { bits }) if matches!(bits, 33..64) => vec![
-                        FcvtLuS { ret: r_handler, arg: v_handler },
-                        ExtactI64 { ret: r_handler, arg: r_handler, pos: 0, len: *bits },
-                    ],
-                    (FPType(FPType::Single), IntegerType { bits: 64 }) => vec![FcvtLuS { ret: r_handler, arg: v_handler }],
+                    (FPType(FPType::Single), IntegerType { bits: 64 }) => {
+                        let mut ret = vec![FcvtDS { ret: v_handler, arg: v_handler }];
+                        ret.extend(self.fp64_to_u64(v_handler, r_handler));
+                        ret.push(FcvtSD { ret: v_handler, arg: v_handler });
+                        ret
+                    }
                     _ => todo!(),
                 }
             }
             ConstantOperand(constant) => match constant.as_ref() {
                 Constant::Float(Float::Double(double)) => match r_ty.as_ref() {
-                    IntegerType { bits } if matches!(bits, 0..=32) => {
-                        vec![MoviI32 { ret: r_handler, arg: extract_const_i64(*double as i64, *bits) as i32 }]
-                    }
-                    IntegerType { bits } if matches!(bits, 33..=64) => {
-                        vec![MoviI64 { ret: r_handler, arg: extract_const_i64(*double as i64, *bits) }]
-                    }
+                    IntegerType { bits } => vec![MoviI64 { ret: r_handler, arg: extract_const_i64(*double as i64, *bits) }],
                     _ => todo!(),
                 },
                 Constant::Float(Float::Single(single)) => match r_ty.as_ref() {
-                    IntegerType { bits } if matches!(bits, 0..=32) => {
-                        vec![MoviI32 { ret: r_handler, arg: extract_const_i64(*single as i64, *bits) as i32 }]
-                    }
-                    IntegerType { bits } if matches!(bits, 33..=64) => {
-                        vec![MoviI64 { ret: r_handler, arg: extract_const_i64(*single as i64, *bits) }]
-                    }
+                    IntegerType { bits } => vec![MoviI64 { ret: r_handler, arg: extract_const_i64(*single as i64, *bits) }],
                     _ => todo!(),
                 },
                 _ => todo!(),
@@ -162,23 +276,17 @@ impl Processor<'_> {
                 let v_handler = self.name_to_handler(name);
                 match (ty.as_ref(), r_ty.as_ref()) {
                     (IntegerType { bits }, FPType(FPType::Double)) if matches!(bits, 0..32) => vec![
-                        ExtuI32I64 { ret: r_handler, arg: v_handler },
-                        ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                        ShliI64 { ret: r_handler, arg_1: v_handler, arg_2: (64 - bits) as i64 },
                         SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
                         FcvtDW { ret: r_handler, arg: r_handler },
                     ],
                     (IntegerType { bits }, FPType(FPType::Single)) if matches!(bits, 0..32) => vec![
-                        ExtuI32I64 { ret: r_handler, arg: v_handler },
-                        ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                        ShliI64 { ret: r_handler, arg_1: v_handler, arg_2: (64 - bits) as i64 },
                         SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
                         FcvtSW { ret: r_handler, arg: r_handler },
                     ],
-                    (IntegerType { bits: 32 }, FPType(FPType::Double)) => {
-                        vec![ExtuI32I64 { ret: r_handler, arg: v_handler }, FcvtDW { ret: r_handler, arg: r_handler }]
-                    }
-                    (IntegerType { bits: 32 }, FPType(FPType::Single)) => {
-                        vec![ExtuI32I64 { ret: r_handler, arg: v_handler }, FcvtSW { ret: r_handler, arg: r_handler }]
-                    }
+                    (IntegerType { bits: 32 }, FPType(FPType::Double)) => vec![FcvtDW { ret: r_handler, arg: v_handler }],
+                    (IntegerType { bits: 32 }, FPType(FPType::Single)) => vec![FcvtSW { ret: r_handler, arg: v_handler }],
                     (IntegerType { bits }, FPType(FPType::Double)) if matches!(bits, 33..64) => vec![
                         ShliI64 { ret: r_handler, arg_1: v_handler, arg_2: (64 - bits) as i64 },
                         SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
@@ -214,12 +322,8 @@ impl Processor<'_> {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
                 match (ty.as_ref(), r_ty) {
-                    (IntegerType { bits: 0..=32 }, FPType(FPType::Double)) => {
-                        vec![ExtuI32I64 { ret: r_handler, arg: v_handler }, FcvtDWu { ret: r_handler, arg: r_handler }]
-                    }
-                    (IntegerType { bits: 0..=32 }, FPType(FPType::Single)) => {
-                        vec![ExtuI32I64 { ret: r_handler, arg: v_handler }, FcvtSWu { ret: r_handler, arg: r_handler }]
-                    }
+                    (IntegerType { bits: 0..=32 }, FPType(FPType::Double)) => vec![FcvtDWu { ret: r_handler, arg: v_handler }],
+                    (IntegerType { bits: 0..=32 }, FPType(FPType::Single)) => vec![FcvtSWu { ret: r_handler, arg: v_handler }],
                     (IntegerType { bits: 33..=64 }, FPType(FPType::Double)) => vec![FcvtDLu { ret: r_handler, arg: v_handler }],
                     (IntegerType { bits: 33..=64 }, FPType(FPType::Single)) => vec![FcvtSLu { ret: r_handler, arg: v_handler }],
                     _ => todo!(),
@@ -246,15 +350,8 @@ impl Processor<'_> {
         match trunc.get_operand() {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
-                match (ty.as_ref(), ret_bits) {
-                    (IntegerType { bits: 0..=32 }, 0..=32) => {
-                        vec![ExtactI32 { ret: ret_handler, arg: v_handler, pos: 0, len: ret_bits }]
-                    }
-                    (IntegerType { bits: 33..=64 }, 0..=32) => vec![
-                        ExtrlI64I32 { ret: ret_handler, arg: v_handler },
-                        ExtactI32 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
-                    ],
-                    (IntegerType { bits: 33..=64 }, 33..=64) => {
+                match ty.as_ref() {
+                    IntegerType { bits: 0..=64 } => {
                         vec![ExtactI64 { ret: ret_handler, arg: v_handler, pos: 0, len: ret_bits }]
                     }
                     _ => todo!(),
@@ -275,33 +372,16 @@ impl Processor<'_> {
 
     pub fn zext(&self, zext: &ZExt) -> Vec<Tcg> {
         let ret_handler = self.name_to_handler(zext.get_result());
-        let ret_bits = match self.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
-            IntegerType { bits } => *bits,
-            _ => todo!(),
-        };
         match zext.get_operand() {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
-                match (ty.as_ref(), ret_bits) {
-                    (IntegerType { bits }, 0..=32) if matches!(bits, 0..=32) => {
-                        vec![MovI32 { ret: ret_handler, arg: v_handler }]
-                    }
-                    (IntegerType { bits }, 33..=64) if matches!(bits, 0..=32) => {
-                        vec![ExtuI32I64 { ret: ret_handler, arg: v_handler }]
-                    }
-                    (IntegerType { bits }, 33..=64) if matches!(bits, 33..=64) => {
-                        vec![MovI64 { ret: ret_handler, arg: v_handler }]
-                    }
+                match ty.as_ref() {
+                    IntegerType { bits } => vec![ExtactI64 { ret: ret_handler, arg: v_handler, pos: 0, len: *bits }],
                     _ => todo!(),
                 }
             }
-            ConstantOperand(constant) => match (constant.as_ref(), ret_bits) {
-                (Constant::Int { bits, value }, 0..=32) => {
-                    vec![MoviI32 { ret: ret_handler, arg: (value & (u64::MAX >> (64 - bits))) as i32 }]
-                }
-                (Constant::Int { bits, value }, 33..=64) => {
-                    vec![MoviI64 { ret: ret_handler, arg: (value & (u64::MAX >> (64 - bits))) as i64 }]
-                }
+            ConstantOperand(constant) => match constant.as_ref() {
+                Constant::Int { bits, value } => vec![MoviI64 { ret: ret_handler, arg: extract_const_u64(*value, *bits) }],
                 _ => todo!(),
             },
             _ => todo!(),
@@ -310,37 +390,19 @@ impl Processor<'_> {
 
     pub fn sext(&self, sext: &SExt) -> Vec<Tcg> {
         let ret_handler = self.name_to_handler(sext.get_result());
-        let ret_bits = match self.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
-            IntegerType { bits } => *bits,
-            _ => todo!(),
-        };
         match sext.get_operand() {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
-                match (ty.as_ref(), ret_bits) {
-                    (IntegerType { bits }, 0..=32) if matches!(bits, 0..32) => vec![
-                        ShliI32 { ret: ret_handler, arg_1: ret_handler, arg_2: (32 - bits) as i32 },
-                        SariI32 { ret: ret_handler, arg_1: ret_handler, arg_2: (32 - bits) as i32 },
-                    ],
-                    (IntegerType { bits }, 33..=64) if matches!(bits, 0..=32) => vec![
-                        ExtuI32I64 { ret: ret_handler, arg: v_handler },
-                        ShliI64 { ret: ret_handler, arg_1: ret_handler, arg_2: (64 - bits) as i64 },
-                        SariI64 { ret: ret_handler, arg_1: ret_handler, arg_2: (64 - bits) as i64 },
-                    ],
-                    (IntegerType { bits }, 33..=64) if matches!(bits, 33..64) => vec![
-                        ShliI64 { ret: ret_handler, arg_1: ret_handler, arg_2: (64 - bits) as i64 },
+                match ty.as_ref() {
+                    IntegerType { bits } => vec![
+                        ShliI64 { ret: ret_handler, arg_1: v_handler, arg_2: (64 - bits) as i64 },
                         SariI64 { ret: ret_handler, arg_1: ret_handler, arg_2: (64 - bits) as i64 },
                     ],
                     _ => todo!(),
                 }
             }
-            ConstantOperand(constant) => match (constant.as_ref(), ret_bits) {
-                (Constant::Int { bits, value }, 0..=32) => {
-                    vec![MoviI32 { ret: ret_handler, arg: (*value as i32) << (32 - *bits) >> (32 - *bits) }]
-                }
-                (Constant::Int { bits, value }, 33..=64) => {
-                    vec![MoviI64 { ret: ret_handler, arg: (*value as i64) << (64 - *bits) >> (64 - *bits) }]
-                }
+            ConstantOperand(constant) => match constant.as_ref() {
+                Constant::Int { bits, value } => vec![MoviI64 { ret: ret_handler, arg: sign_extend_const(*value, *bits) }],
                 _ => todo!(),
             },
             _ => todo!(),
@@ -383,7 +445,7 @@ impl Processor<'_> {
             }
             ConstantOperand(constant) => match (constant.as_ref(), r_ty) {
                 (Constant::Float(Float::Double(double)), FPType(FPType::Single)) => {
-                    vec![MoviI64 { ret: ret_handler, arg: (*double as f32).to_bits() as i64 }]
+                    vec![MoviI64 { ret: ret_handler, arg: ((*double as f32).to_bits() as u64 | 0xffff_ffff_0000_0000) as i64 }]
                 }
                 _ => todo!(),
             },

@@ -2,48 +2,14 @@ use super::Handler;
 use std::fmt::{Display, Formatter, Result};
 
 /// 名义上叫 TCG，实际上因为浮点函数，不是 TCG。
-#[allow(dead_code)]
-#[derive(Debug)]
 pub enum Tcg {
-    Label(Handler),
-
-    AddiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
-    AddI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
-
-    /// 为了代码的简化，这里 `subfi_i32` 与实际 TCG 对应函数的后两个参数是反过来的
-    SubfiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
-    SubiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
-    SubI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
-
-    MuliI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
-    MulI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
-
-    DivI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
-    DivuI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
-    RemI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
-    RemuI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
-
-    AndiI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
-    AndI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
-
-    OriI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
-    OrI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
-
-    XoriI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
-    XorI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
-
     ShliI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
-    ShlI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
-
-    ShriI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
-    ShrI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
-
     SariI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
-    SarI32 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
     AddiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
     AddI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
+    /// 为了代码的简化，这里 `subfi_i64` 与实际 TCG 对应函数的后两个参数是反过来的
     SubfiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
     SubiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
     SubI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
@@ -76,13 +42,14 @@ pub enum Tcg {
 
     MoviI32 { ret: Handler, arg: i32 },
     MoviI64 { ret: Handler, arg: i64 },
-    MovI32 { ret: Handler, arg: Handler },
     MovI64 { ret: Handler, arg: Handler },
-    ExtuI32I64 { ret: Handler, arg: Handler },
-    ExtI32I64 { ret: Handler, arg: Handler },
-    ExtactI32 { ret: Handler, arg: Handler, pos: u32, len: u32 },
     ExtactI64 { ret: Handler, arg: Handler, pos: u32, len: u32 },
     ExtrlI64I32 { ret: Handler, arg: Handler },
+
+    SminI64{ ret: Handler, arg_1: Handler, arg_2: Handler },
+    SmaxI64{ ret: Handler, arg_1: Handler, arg_2: Handler },
+    UminI64{ ret: Handler, arg_1: Handler, arg_2: Handler },
+    UmaxI64{ ret: Handler, arg_1: Handler, arg_2: Handler },
 
     /// 单精度浮点数转为 32 位有符号整数
     FcvtWS{ret: Handler, arg: Handler},
@@ -147,40 +114,8 @@ pub enum Tcg {
 impl Display for Tcg {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
-            Self::Label(handler) => write!(f, "label_{handler}:"),
-
-            Self::AddiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_addi_i32(val_{ret}, val_{arg_1}, {arg_2});"),
-            Self::AddI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_add_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
-
-            Self::SubfiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_subfi_i32(val_{ret}, {arg_2}, val_{arg_1});"),
-            Self::SubiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_subi_i32(val_{ret}, val_{arg_1}, {arg_2});"),
-            Self::SubI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_sub_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
-
-            Self::MuliI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_muli_i32(val_{ret}, val_{arg_1}, {arg_2});"),
-            Self::MulI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_mul_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
-
-            Self::DivI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_div_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
-            Self::DivuI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_divu_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
-            Self::RemI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_rem_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
-            Self::RemuI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_remu_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
-
-            Self::AndiI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_andi_i32(val_{ret}, val_{arg_1}, {arg_2});"),
-            Self::AndI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_and_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
-
-            Self::OriI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_ori_i32(val_{ret}, val_{arg_1}, {arg_2});"),
-            Self::OrI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_or_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
-
-            Self::XoriI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_xori_i32(val_{ret}, val_{arg_1}, {arg_2});"),
-            Self::XorI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_xor_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
-
             Self::ShliI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_shli_i32(val_{ret}, val_{arg_1}, {arg_2});"),
-            Self::ShlI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_shl_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
-
-            Self::ShriI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_shri_i32(val_{ret}, val_{arg_1}, {arg_2});"),
-            Self::ShrI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_shr_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
-
             Self::SariI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_sari_i32(val_{ret}, val_{arg_1}, {arg_2});"),
-            Self::SarI32 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_sar_i32(val_{ret}, val_{arg_1}, val_{arg_2});"),
 
             Self::AddiI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_addi_i64(val_{ret}, val_{arg_1}, {arg_2});"),
             Self::AddI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_add_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
@@ -217,13 +152,14 @@ impl Display for Tcg {
 
             Self::MoviI32 { ret, arg } => write!(f, "tcg_gen_movi_i32(val_{ret}, {arg});"),
             Self::MoviI64 { ret, arg } => write!(f, "tcg_gen_movi_i64(val_{ret}, {arg});"),
-            Self::MovI32 { ret, arg } => write!(f, "tcg_gen_mov_i32(val_{ret}, val_{arg});"),
             Self::MovI64 { ret, arg } => write!(f, "tcg_gen_mov_i64(val_{ret}, val_{arg});"),
-            Self::ExtuI32I64 { ret, arg } => write!(f, "tcg_gen_extu_i32_i64(val_{ret}, val_{arg});"),
-            Self::ExtI32I64 { ret, arg } => write!(f, "tcg_gen_ext_i32_i64(val_{ret}, val_{arg});"),
-            Self::ExtactI32 { ret, arg, pos, len } => write!(f, "tcg_gen_extract_i32(val_{ret}, val_{arg}, {pos}, {len});"),
             Self::ExtactI64 { ret, arg, pos, len } => write!(f, "tcg_gen_extract_i64(val_{ret}, val_{arg}, {pos}, {len});"),
             Self::ExtrlI64I32 { ret, arg } => write!(f, "tcg_gen_extrl_i64_i32(val_{ret}, val_{arg});"),
+
+            Self::SminI64{ ret, arg_1, arg_2 } => write!(f, "tcg_gen_smin_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
+            Self::SmaxI64{ ret, arg_1, arg_2 } => write!(f, "tcg_gen_smax_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
+            Self::UminI64{ ret, arg_1, arg_2 } => write!(f, "tcg_gen_umin_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
+            Self::UmaxI64{ ret, arg_1, arg_2 } => write!(f, "tcg_gen_umax_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
 
             Self::FcvtWS { ret, arg } => write!(f, "gen_helper_fcvt_w_s(val_{ret}, tcg_env, val_{arg});"),
             Self::FcvtWuS { ret, arg } => write!(f, "gen_helper_fcvt_wu_s(val_{ret}, tcg_env, val_{arg});"),
