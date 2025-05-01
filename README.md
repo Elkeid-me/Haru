@@ -2,7 +2,8 @@
 
 1. 从 `apt.llvm.org` 安装 LLVM 19。
 2. 同时, 安装 `libpolly-19-dev` 包。
-3. 运行
+3. （可选）中国大陆地区的开发者，可考虑使用 `crates.io` 镜像，如[清华大学镜像源](https://mirrors.tuna.tsinghua.edu.cn/help/crates.io-index/)
+4. 运行
    ```bash
    cargo build -r
    ```
