@@ -1,8 +1,8 @@
 use super::Processor;
 use super::tcg::Tcg::{self, *};
 use llvm_ir::Constant;
-use llvm_ir::instruction::{AShr, Add, And, LShr, Mul, Or, SDiv, SRem, Shl, Sub, UDiv, URem, Xor};
-use llvm_ir::{Operand::*, Type::*, instruction::BinaryOp, instruction::HasResult};
+use llvm_ir::instruction::{AShr, Add, And, ICmp, LShr, Mul, Or, SDiv, SRem, Shl, Sub, UDiv, URem, Xor};
+use llvm_ir::{Operand::*, Type::*, instruction::HasResult};
 
 #[inline]
 pub fn sign_extend_const(original_bits: u64, n_bits: u32) -> i64 {
@@ -39,9 +39,17 @@ macro_rules! two_variables {
                     ],
                     (0..64, true) => vec![
                         ShliI64 { ret: $processor.get_tmp::<1>(), arg_1: $l_handler, arg_2: 64 - ($ret_bits as i64) },
-                        SariI64 { ret: $processor.get_tmp::<1>(), arg_1: $processor.get_tmp::<1>(), arg_2: 64 - ($ret_bits as i64) },
+                        SariI64 {
+                            ret: $processor.get_tmp::<1>(),
+                            arg_1: $processor.get_tmp::<1>(),
+                            arg_2: 64 - ($ret_bits as i64),
+                        },
                         ShliI64 { ret: $processor.get_tmp::<2>(), arg_1: $r_handler, arg_2: 64 - ($ret_bits as i64) },
-                        SariI64 { ret: $processor.get_tmp::<2>(), arg_1: $processor.get_tmp::<2>(), arg_2: 64 - ($ret_bits as i64) },
+                        SariI64 {
+                            ret: $processor.get_tmp::<2>(),
+                            arg_1: $processor.get_tmp::<2>(),
+                            arg_2: 64 - ($ret_bits as i64),
+                        },
                         $op_64 { ret: $ret_handler, arg_1: $processor.get_tmp::<1>(), arg_2: $processor.get_tmp::<2>() },
                         ShliI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: 64 - ($ret_bits as i64) },
                         SariI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: 64 - ($ret_bits as i64) },
@@ -68,8 +76,16 @@ macro_rules! vc_imm_tcg {
                 match (v_bits, $sign) {
                     (0..64, false) => vec![
                         ShliI64 { ret: $processor.get_tmp::<1>(), arg_1: $v_handler, arg_2: 64 - ($ret_bits as i64) },
-                        SariI64 { ret: $processor.get_tmp::<1>(), arg_1: $processor.get_tmp::<1>(), arg_2: 64 - ($ret_bits as i64) },
-                        $op_64_imm { ret: $ret_handler, arg_1: $processor.get_tmp::<1>(), arg_2: sign_extend_const(*value, $ret_bits) },
+                        SariI64 {
+                            ret: $processor.get_tmp::<1>(),
+                            arg_1: $processor.get_tmp::<1>(),
+                            arg_2: 64 - ($ret_bits as i64),
+                        },
+                        $op_64_imm {
+                            ret: $ret_handler,
+                            arg_1: $processor.get_tmp::<1>(),
+                            arg_2: sign_extend_const(*value, $ret_bits),
+                        },
                         ShliI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: 64 - ($ret_bits as i64) },
                         SariI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: 64 - ($ret_bits as i64) },
                     ],
@@ -117,7 +133,7 @@ macro_rules! two_consts {
                 if *l_bits == *r_bits && *l_bits == $ret_bits =>
             {
                 match (l_bits, $sign) {
-                    (0..64, false) => vec![MoviI64 { ret: $ret_handler, arg: extract_const_u64(l_value $op r_value, $ret_bits) }],
+                    (0..64, false) => vec![MoviI64 { ret: $ret_handler, arg: extract_const_u64((l_value $op r_value) as u64, $ret_bits) }],
                     (0..64, true) => vec![MoviI64 {
                         ret: $ret_handler,
                         arg: sign_extend_const(
@@ -143,7 +159,7 @@ macro_rules! int_op_impl {
             IntegerType { bits } => *bits,
             _ => todo!(),
         };
-        match ($inst.get_operand0(), $inst.get_operand1()) {
+        match (&$inst.operand0, &$inst.operand1) {
             (LocalOperand { name: l_name, ty: _ }, LocalOperand { name: r_name, ty: _ }) => {
                 let l_handler = $processor.name_to_handler(l_name);
                 let r_handler = $processor.name_to_handler(r_name);
@@ -238,5 +254,20 @@ impl Processor<'_> {
 
     pub fn sar(&self, shl: &AShr) -> Vec<Tcg> {
         int_op!(self, shl, >>, SarI64, true)
+    }
+
+    pub fn icmp(&self, icmp: &ICmp) -> Vec<Tcg> {
+        match icmp.predicate {
+            llvm_ir::IntPredicate::EQ => int_op!(self, icmp, ==, SetCondEqI64, false),
+            llvm_ir::IntPredicate::NE => int_op!(self, icmp, !=, SetCondNeI64, false),
+            llvm_ir::IntPredicate::UGT => int_op!(self, icmp, >, SetCondUgtI64, false),
+            llvm_ir::IntPredicate::UGE => int_op!(self, icmp, >=, SetCondUgeI64, false),
+            llvm_ir::IntPredicate::ULT => int_op!(self, icmp, <, SetCondUltI64, false),
+            llvm_ir::IntPredicate::ULE => int_op!(self, icmp, <=, SetCondUleI64, false),
+            llvm_ir::IntPredicate::SGT => int_op!(self, icmp, >, SetCondSgtI64, true),
+            llvm_ir::IntPredicate::SGE => int_op!(self, icmp, >=, SetCondSgeI64, true),
+            llvm_ir::IntPredicate::SLT => int_op!(self, icmp, <, SetCondSltI64, true),
+            llvm_ir::IntPredicate::SLE => int_op!(self, icmp, <=, SetCondSleI64, true),
+        }
     }
 }

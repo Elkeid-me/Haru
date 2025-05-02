@@ -105,6 +105,7 @@ impl<'a> Processor<'a> {
                 ZExt(zext) => self.zext(zext),
                 SExt(sext) => self.sext(sext),
                 Trunc(trunc) => self.trunc(trunc),
+                ICmp(icmp) => self.icmp(icmp),
                 _ => todo!(),
             })
             .flatten()
