@@ -1,3 +1,7 @@
+# Haru
+
+从 LLVM IR 自动生成 QEMU Patch 的小工具。
+
 ## 在 Ubuntu 24.04 上构建
 
 1. 从 `apt.llvm.org` 安装 LLVM 19。
@@ -33,3 +37,29 @@ haru [OPTIONS] <INPUT>
 - `-o`，`--output <OUTPUT>`，指定输出文件名，不指定时将输出到 `trans_<INST>.c`。
 - `-h`，`--help`，打印帮助。
 - `-V`，`-version`，显示 Haru 版本。
+
+## `gen_test.exs`
+
+Elixir 脚本，生成测试点的妙妙工具。
+
+用法：
+
+```bash
+elixir gen_test.exs --macro <path_1> --no-macro <path_2>
+```
+
+它会在 `<path_1>` 生成：
+
+```c
+#ifdef use_f_0
+[[gnu::noinline]] unsigned int f_0(float a, float a, float a) { return (a) + ((a) + (a)); }
+#endif
+......
+```
+
+而在 `<path_2>` 生成：
+
+```c
+[[gnu::noinline]] unsigned int f_0(float a, float a, float a) { return (a) + ((a) + (a)); }
+......
+```
