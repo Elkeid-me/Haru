@@ -52,7 +52,7 @@ bool equal(T lhs, T rhs)
 {
     return std::abs(lhs - rhs) < 1e-6 ||
            std::bit_cast<int_selector_t<T>>(lhs) == std::bit_cast<int_selector_t<T>>(rhs) ||
-           (std::isnan<T>(lhs) && std::isnan<T>(rhs));
+           (std::isnan(lhs) && std::isnan(rhs));
 }
 
 template <std::integral T>
