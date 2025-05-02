@@ -75,6 +75,7 @@ defmodule GenTest do
 
     para_spec =
       paras
+      |> uniq()
       |> filter(fn para -> para in used_paras_ end)
       |> map(fn para -> "#{Map.get(type_spec, para)} #{para}" end)
       |> join(", ")
