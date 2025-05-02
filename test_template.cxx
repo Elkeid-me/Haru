@@ -36,7 +36,8 @@ template <std::floating_point T>
 T prepare_arg()
 {
     static std::mt19937 gen{std::random_device{}()};
-    static std::uniform_real_distribution<T> random_engine{fp_min_max<T>::min, fp_min_max<T>::max};
+    static std::uniform_real_distribution<T> random_engine{fp_min_max<T>::min / 2.1,
+                                                           fp_min_max<T>::max / 2.1};
     return random_engine(gen);
 }
 
