@@ -10,6 +10,11 @@ impl Processor<'_> {
         let tmp_1 = self.get_tmp::<1>();
         let tmp_2 = self.get_tmp::<2>();
         let tmp_3 = self.get_tmp::<3>();
+        self.use_variable(tmp_1);
+        self.use_variable(tmp_2);
+        self.use_variable(tmp_3);
+        self.use_variable(v_handler);
+        self.use_variable(r_handler);
         vec![
             Tcg::ExtactI64 { ret: r_handler, arg: v_handler, pos: 0, len: 52 },
             Tcg::OriI64 { ret: r_handler, arg_1: r_handler, arg_2: 1i64 << 52 }, // r_handler = frac
@@ -67,6 +72,12 @@ impl Processor<'_> {
         let tmp_2 = self.get_tmp::<2>();
         let tmp_3 = self.get_tmp::<3>();
         let tmp_4 = self.get_tmp::<4>();
+        self.use_variable(tmp_1);
+        self.use_variable(tmp_2);
+        self.use_variable(tmp_3);
+        self.use_variable(tmp_4);
+        self.use_variable(v_handler);
+        self.use_variable(r_handler);
         vec![
             Tcg::SariI64 { ret: tmp_4, arg_1: v_handler, arg_2: 63 },
             Tcg::XoriI64 { ret: tmp_4, arg_1: tmp_4, arg_2: u64::MAX as i64 },
@@ -103,22 +114,23 @@ impl Processor<'_> {
             Tcg::AndI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_2 },
             // ---
             // NaN:
-            Tcg::ExtactI64 { ret: tmp_2, arg: tmp_4, pos: 0, len: 52 },
-            Tcg::SubiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0x7ff },
-            Tcg::SariI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 63 },
-            Tcg::SubfiI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 0 },
-            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 63 },
-            Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_2, arg_2: u64::MAX as i64 },
-            Tcg::OrI64 { ret: tmp_1, arg_1: tmp_1, arg_2: tmp_2 }, // cond
-            Tcg::XoriI64 { ret: r_handler, arg_1: r_handler, arg_2: (u64::MAX >> 1) as i64 },
-            Tcg::AndI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_1 },
-            Tcg::XoriI64 { ret: r_handler, arg_1: r_handler, arg_2: (u64::MAX >> 1) as i64 },
+            // Tcg::ExtactI64 { ret: tmp_2, arg: tmp_4, pos: 0, len: 52 },
+            // Tcg::SubiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0x7ff },
+            // Tcg::SariI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 63 },
+            // Tcg::SubfiI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 0 },
+            // Tcg::SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 63 },
+            // Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_2, arg_2: u64::MAX as i64 },
+            // Tcg::OrI64 { ret: tmp_1, arg_1: tmp_1, arg_2: tmp_2 }, // cond
+            // Tcg::XoriI64 { ret: r_handler, arg_1: r_handler, arg_2: (u64::MAX >> 1) as i64 },
+            // Tcg::AndI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_1 },
+            // Tcg::XoriI64 { ret: r_handler, arg_1: r_handler, arg_2: (u64::MAX >> 1) as i64 },
         ]
     }
 
     pub fn fp_to_si(&self, fp_to_si: &FPToSI) -> Vec<Tcg> {
         let r_handler = self.name_to_handler(fp_to_si.get_result());
         let r_ty = self.symbol_table.borrow().get(&r_handler).unwrap().clone();
+        self.use_variable(r_handler);
         match fp_to_si.get_operand() {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
@@ -203,6 +215,7 @@ impl Processor<'_> {
     pub fn fp_to_ui(&self, fp_to_ui: &FPToUI) -> Vec<Tcg> {
         let r_handler = self.name_to_handler(fp_to_ui.get_result());
         let r_ty = self.symbol_table.borrow().get(&r_handler).unwrap().clone();
+        self.use_variable(r_handler);
         match fp_to_ui.get_operand() {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
@@ -271,9 +284,11 @@ impl Processor<'_> {
     pub fn si_to_fp(&self, si_to_fp: &SIToFP) -> Vec<Tcg> {
         let r_handler = self.name_to_handler(si_to_fp.get_result());
         let r_ty = self.symbol_table.borrow().get(&r_handler).unwrap().clone();
+        self.use_variable(r_handler);
         match si_to_fp.get_operand() {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
+                self.use_variable(v_handler);
                 match (ty.as_ref(), r_ty.as_ref()) {
                     (IntegerType { bits }, FPType(FPType::Double)) if matches!(bits, 0..32) => vec![
                         ShliI64 { ret: r_handler, arg_1: v_handler, arg_2: (64 - bits) as i64 },
@@ -318,9 +333,11 @@ impl Processor<'_> {
         let r_handler = self.name_to_handler(ui_to_fp.get_result());
         let binding = self.symbol_table.borrow();
         let r_ty = binding.get(&r_handler).unwrap().as_ref();
+        self.use_variable(r_handler);
         match ui_to_fp.get_operand() {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
+                self.use_variable(v_handler);
                 match (ty.as_ref(), r_ty) {
                     (IntegerType { bits: 0..=32 }, FPType(FPType::Double)) => vec![FcvtDWu { ret: r_handler, arg: v_handler }],
                     (IntegerType { bits: 0..=32 }, FPType(FPType::Single)) => vec![FcvtSWu { ret: r_handler, arg: v_handler }],
@@ -347,9 +364,11 @@ impl Processor<'_> {
             IntegerType { bits } => *bits,
             _ => todo!(),
         };
+        self.use_variable(ret_handler);
         match trunc.get_operand() {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
+                self.use_variable(v_handler);
                 match ty.as_ref() {
                     IntegerType { bits: 0..=64 } => {
                         vec![ExtactI64 { ret: ret_handler, arg: v_handler, pos: 0, len: ret_bits }]
@@ -372,9 +391,11 @@ impl Processor<'_> {
 
     pub fn zext(&self, zext: &ZExt) -> Vec<Tcg> {
         let ret_handler = self.name_to_handler(zext.get_result());
+        self.use_variable(ret_handler);
         match zext.get_operand() {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
+                self.use_variable(v_handler);
                 match ty.as_ref() {
                     IntegerType { bits } => vec![ExtactI64 { ret: ret_handler, arg: v_handler, pos: 0, len: *bits }],
                     _ => todo!(),
@@ -390,9 +411,11 @@ impl Processor<'_> {
 
     pub fn sext(&self, sext: &SExt) -> Vec<Tcg> {
         let ret_handler = self.name_to_handler(sext.get_result());
+        self.use_variable(ret_handler);
         match sext.get_operand() {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
+                self.use_variable(v_handler);
                 match ty.as_ref() {
                     IntegerType { bits } => vec![
                         ShliI64 { ret: ret_handler, arg_1: v_handler, arg_2: (64 - bits) as i64 },
@@ -413,9 +436,11 @@ impl Processor<'_> {
         let ret_handler = self.name_to_handler(fp_ext.get_result());
         let binding = self.symbol_table.borrow();
         let r_ty = binding.get(&ret_handler).unwrap().as_ref();
+        self.use_variable(ret_handler);
         match fp_ext.get_operand() {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
+                self.use_variable(v_handler);
                 match (ty.as_ref(), r_ty) {
                     (FPType(FPType::Single), FPType(FPType::Double)) => vec![FcvtDS { ret: ret_handler, arg: v_handler }],
                     _ => todo!(),
@@ -435,9 +460,11 @@ impl Processor<'_> {
         let ret_handler = self.name_to_handler(fp_trunc.get_result());
         let binding = self.symbol_table.borrow();
         let r_ty = binding.get(&ret_handler).unwrap().as_ref();
+        self.use_variable(ret_handler);
         match fp_trunc.get_operand() {
             LocalOperand { name, ty } => {
                 let v_handler = self.name_to_handler(name);
+                self.use_variable(v_handler);
                 match (ty.as_ref(), r_ty) {
                     (FPType(FPType::Double), FPType(FPType::Single)) => vec![FcvtSD { ret: ret_handler, arg: v_handler }],
                     _ => todo!(),

@@ -76,17 +76,27 @@ macro_rules! fp_op {
             (LocalOperand { name: l_name, ty: _ }, LocalOperand { name: r_name, ty: _ }) => {
                 let l_handler = $processor.name_to_handler(l_name);
                 let r_handler = $processor.name_to_handler(r_name);
+                $processor.use_variable(l_handler);
+                $processor.use_variable(r_handler);
+                $processor.use_variable(ret_handler);
                 two_operand!($processor, l_handler, r_handler, ret_handler, $op_32, $op_64)
             }
             (LocalOperand { name: v_name, ty: _ }, ConstantOperand(constant)) => {
                 let v_handler = $processor.name_to_handler(v_name);
+                $processor.use_variable(v_handler);
+                $processor.use_variable(ret_handler);
                 value_const!($processor, v_handler, constant, ret_handler, $op_32, $op_64)
             }
             (ConstantOperand(constant), LocalOperand { name: v_name, ty: _ }) => {
                 let v_handler = $processor.name_to_handler(v_name);
+                $processor.use_variable(v_handler);
+                $processor.use_variable(ret_handler);
                 const_value!($processor, v_handler, constant, ret_handler, $op_32, $op_64)
             }
-            (ConstantOperand(l_constant), ConstantOperand(r_constant)) => two_const!($op, l_constant, r_constant, ret_handler),
+            (ConstantOperand(l_constant), ConstantOperand(r_constant)) => {
+                $processor.use_variable(ret_handler);
+                two_const!($op, l_constant, r_constant, ret_handler)
+            }
             _ => todo!(),
         }
     }};
@@ -115,9 +125,11 @@ impl Processor<'_> {
 
     pub fn fneg(&self, fneg: &FNeg) -> Vec<Tcg> {
         let ret_handler = self.name_to_handler(fneg.get_result());
+        self.use_variable(ret_handler);
         match &fneg.get_operand() {
             LocalOperand { name, ty } => {
                 let arg_handler = self.name_to_handler(name);
+                self.use_variable(arg_handler);
                 match ty.as_ref() {
                     FPType(FPType::Double) => vec![XoriI64 { ret: ret_handler, arg_1: arg_handler, arg_2: 1i64 << 63 }],
                     FPType(FPType::Single) => vec![XoriI64 { ret: ret_handler, arg_1: arg_handler, arg_2: 1i64 << 31 }],

@@ -49,18 +49,17 @@ pub enum Tcg {
     SminI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
     SmaxI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
     UminI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
-    UmaxI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
-    SetCondEqI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
-    SetCondNeI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
-    SetCondUgtI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
-    SetCondUgeI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
-    SetCondUltI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
-    SetCondUleI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
-    SetCondSgtI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
-    SetCondSgeI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
-    SetCondSltI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
-    SetCondSleI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
+    SetcondEqI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
+    SetcondNeI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
+    SetcondUgtI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
+    SetcondUgeI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
+    SetcondUltI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
+    SetcondUleI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
+    SetcondSgtI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
+    SetcondSgeI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
+    SetcondSltI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
+    SetcondSleI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
     /// 32 位有符号整数转为单精度浮点数
     FcvtSW { ret: Handler, arg: Handler },
@@ -152,28 +151,27 @@ impl Display for Tcg {
             Self::SminI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_smin_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
             Self::SmaxI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_smax_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
             Self::UminI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_umin_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
-            Self::UmaxI64 { ret, arg_1, arg_2 } => write!(f, "tcg_gen_umax_i64(val_{ret}, val_{arg_1}, val_{arg_2});"),
 
-            Self::SetCondEqI64 { ret, arg_1, arg_2 } =>
-                write!(f, "tcg_gen_set_cond_i64(TCG_COND_EQ, val_{ret}, val_{arg_1}, val_{arg_2});"),
-            Self::SetCondNeI64 { ret, arg_1, arg_2 } =>
-                write!(f, "tcg_gen_set_cond_i64(TCG_COND_NE, val_{ret}, val_{arg_1}, val_{arg_2});"),
-            Self::SetCondUgtI64 { ret, arg_1, arg_2 } =>
-                write!(f, "tcg_gen_set_cond_i64(TCG_COND_GTU, val_{ret}, val_{arg_1}, val_{arg_2});"),
-            Self::SetCondUgeI64 { ret, arg_1, arg_2 } =>
-                write!(f, "tcg_gen_set_cond_i64(TCG_COND_GEU, val_{ret}, val_{arg_1}, val_{arg_2});"),
-            Self::SetCondUltI64 { ret, arg_1, arg_2 } =>
-                write!(f, "tcg_gen_set_cond_i64(TCG_COND_LTU, val_{ret}, val_{arg_1}, val_{arg_2});"),
-            Self::SetCondUleI64 { ret, arg_1, arg_2 } =>
-                write!(f, "tcg_gen_set_cond_i64(TCG_COND_LEU, val_{ret}, val_{arg_1}, val_{arg_2});"),
-            Self::SetCondSgtI64 { ret, arg_1, arg_2 } =>
-                write!(f, "tcg_gen_set_cond_i64(TCG_COND_GT, val_{ret}, val_{arg_1}, val_{arg_2});"),
-            Self::SetCondSgeI64 { ret, arg_1, arg_2 } =>
-                write!(f, "tcg_gen_set_cond_i64(TCG_COND_GE, val_{ret}, val_{arg_1}, val_{arg_2});"),
-            Self::SetCondSltI64 { ret, arg_1, arg_2 } =>
-                write!(f, "tcg_gen_set_cond_i64(TCG_COND_LT, val_{ret}, val_{arg_1}, val_{arg_2});"),
-            Self::SetCondSleI64 { ret, arg_1, arg_2 } =>
-                write!(f, "tcg_gen_set_cond_i64(TCG_COND_LE, val_{ret}, val_{arg_1}, val_{arg_2});"),
+            Self::SetcondEqI64 { ret, arg_1, arg_2 } =>
+                write!(f, "tcg_gen_setcond_i64(TCG_COND_EQ, val_{ret}, val_{arg_1}, val_{arg_2});"),
+            Self::SetcondNeI64 { ret, arg_1, arg_2 } =>
+                write!(f, "tcg_gen_setcond_i64(TCG_COND_NE, val_{ret}, val_{arg_1}, val_{arg_2});"),
+            Self::SetcondUgtI64 { ret, arg_1, arg_2 } =>
+                write!(f, "tcg_gen_setcond_i64(TCG_COND_GTU, val_{ret}, val_{arg_1}, val_{arg_2});"),
+            Self::SetcondUgeI64 { ret, arg_1, arg_2 } =>
+                write!(f, "tcg_gen_setcond_i64(TCG_COND_GEU, val_{ret}, val_{arg_1}, val_{arg_2});"),
+            Self::SetcondUltI64 { ret, arg_1, arg_2 } =>
+                write!(f, "tcg_gen_setcond_i64(TCG_COND_LTU, val_{ret}, val_{arg_1}, val_{arg_2});"),
+            Self::SetcondUleI64 { ret, arg_1, arg_2 } =>
+                write!(f, "tcg_gen_setcond_i64(TCG_COND_LEU, val_{ret}, val_{arg_1}, val_{arg_2});"),
+            Self::SetcondSgtI64 { ret, arg_1, arg_2 } =>
+                write!(f, "tcg_gen_setcond_i64(TCG_COND_GT, val_{ret}, val_{arg_1}, val_{arg_2});"),
+            Self::SetcondSgeI64 { ret, arg_1, arg_2 } =>
+                write!(f, "tcg_gen_setcond_i64(TCG_COND_GE, val_{ret}, val_{arg_1}, val_{arg_2});"),
+            Self::SetcondSltI64 { ret, arg_1, arg_2 } =>
+                write!(f, "tcg_gen_setcond_i64(TCG_COND_LT, val_{ret}, val_{arg_1}, val_{arg_2});"),
+            Self::SetcondSleI64 { ret, arg_1, arg_2 } =>
+                write!(f, "tcg_gen_setcond_i64(TCG_COND_LE, val_{ret}, val_{arg_1}, val_{arg_2});"),
 
             Self::FcvtSW { ret, arg } => write!(f, "gen_helper_fcvt_s_w(val_{ret}, tcg_env, val_{arg});"),
             Self::FcvtSWu { ret, arg } => write!(f, "gen_helper_fcvt_s_wu(val_{ret}, tcg_env, val_{arg});"),
@@ -204,7 +202,11 @@ impl Display for Tcg {
             Self::SetDestGprPair { expr } => write!(f, "gen_set_gpr_pair(ctx, a->rd, val_{expr});"),
             Self::SetDestFprHs { expr } => write!(f, "gen_set_fpr_hs(ctx, a->rd, val_{expr});"),
             Self::SetDestFprD { expr } => write!(f, "gen_set_fpr_d(ctx, a->rd, val_{expr});"),
-            Self::Ret { float } => if *float { write!(f, "mark_fs_dirty(ctx);\nreturn true;") } else { write!(f, "return true;") },
+            Self::Ret { float } => if *float {
+                write!(f, "mark_fs_dirty(ctx);\nreturn true;")
+            } else {
+                write!(f, "return true;")
+            },
 
             Self::RVArc { rv_32, rv_64 } => match (rv_32, rv_64) {
                 (Some(rv_32), Some(rv_64)) => write!(f, "#ifdef TARGET_RISCV32\n{rv_32}\n#else\n{rv_64}\n#endif"),

@@ -5,6 +5,7 @@ mod tcg;
 
 use llvm_ir::{BasicBlock, Function, Instruction::*, Module, Name, Operand::*, Terminator::*};
 use llvm_ir::{Type::*, TypeRef, function::ParameterAttribute, types::Typed, types::Types};
+use std::collections::HashSet;
 use std::{cell::RefCell, collections::HashMap};
 use tcg::Tcg;
 
@@ -28,6 +29,7 @@ impl Counter {
 pub struct Processor<'a> {
     counter: RefCell<Counter>,
     pub symbol_table: RefCell<HashMap<Handler, TypeRef>>,
+    pub used: RefCell<HashSet<Handler>>,
     symbol_table_2: RefCell<HashMap<Name, Handler>>,
     pub ret: Handler,
     pub parameters: Vec<Handler>,
@@ -49,12 +51,19 @@ impl<'a> Processor<'a> {
         self.tmps.borrow()[N - 1].unwrap()
     }
 
+    #[inline]
     pub fn new_handler(&self) -> Handler {
         self.counter.borrow_mut().get()
     }
 
+    #[inline]
     pub fn name_to_handler(&self, name: &Name) -> Handler {
         *self.symbol_table_2.borrow().get(name).unwrap()
+    }
+
+    #[inline]
+    pub fn use_variable(&self, handler: Handler) {
+        self.used.borrow_mut().insert(handler);
     }
 
     pub fn new(module: &'a Module) -> Self {
@@ -63,6 +72,7 @@ impl<'a> Processor<'a> {
             ret: 0,
             symbol_table: RefCell::default(),
             symbol_table_2: RefCell::default(),
+            used: RefCell::default(),
             parameters: Vec::new(),
             module,
             basic_blocks: RefCell::default(),

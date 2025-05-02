@@ -68,34 +68,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for handler in processor.parameters.iter() {
         match processor.symbol_table.borrow().get(handler).unwrap().as_ref() {
             llvm_ir::Type::IntegerType { bits: 0..=32 } => {
-                writeln!(f, "#ifdef TARGET_RISCV32")?;
-                writeln!(f, "TCGv_i32 rs_{arg_cnt} = get_gpr(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
-                // TODO: 符号扩展/零扩展
-                writeln!(f, "#else")?;
-                writeln!(f, "TCGv_i64 val_{handler} = get_gpr(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
-                writeln!(f, "#endif")?;
+                if processor.used.borrow().contains(handler) {
+                    writeln!(f, "#ifdef TARGET_RISCV32")?;
+                    writeln!(f, "TCGv_i32 rs_{arg_cnt} = get_gpr(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
+                    // TODO: 符号扩展/零扩展
+                    writeln!(f, "#else")?;
+                    writeln!(f, "TCGv_i64 val_{handler} = get_gpr(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
+                    writeln!(f, "#endif")?;
+                }
                 arg_cnt += 1;
                 args_code.push(int_arg_code);
                 int_arg_code += 1;
             }
             llvm_ir::Type::IntegerType { bits: 0..=64 } => {
-                writeln!(f, "#ifdef TARGET_RISCV32")?;
-                writeln!(f, "TCGv_i64 val_{handler} = get_gpr_pair(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
-                writeln!(f, "#else")?;
-                writeln!(f, "TCGv_i64 val_{handler} = get_gpr(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
-                writeln!(f, "#endif")?;
+                if processor.used.borrow().contains(handler) {
+                    writeln!(f, "#ifdef TARGET_RISCV32")?;
+                    writeln!(f, "TCGv_i64 val_{handler} = get_gpr_pair(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
+                    writeln!(f, "#else")?;
+                    writeln!(f, "TCGv_i64 val_{handler} = get_gpr(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
+                    writeln!(f, "#endif")?;
+                }
                 arg_cnt += 1;
                 args_code.push(int_arg_code);
                 int_arg_code += 1;
             }
             llvm_ir::Type::FPType(llvm_ir::types::FPType::Single) => {
-                writeln!(f, "TCGv_i64 val_{handler} = get_fpr_hs(ctx, a->rs{arg_cnt});")?;
+                if processor.used.borrow().contains(handler) {
+                    writeln!(f, "TCGv_i64 val_{handler} = get_fpr_hs(ctx, a->rs{arg_cnt});")?;
+                }
                 arg_cnt += 1;
                 args_code.push(fp_arg_code);
                 fp_arg_code += 1;
             }
             llvm_ir::Type::FPType(llvm_ir::types::FPType::Double) => {
-                writeln!(f, "TCGv_i64 val_{handler} = get_fpr_d(ctx, a->rs{arg_cnt});")?;
+                if processor.used.borrow().contains(handler) {
+                    writeln!(f, "TCGv_i64 val_{handler} = get_fpr_d(ctx, a->rs{arg_cnt});")?;
+                }
                 arg_cnt += 1;
                 args_code.push(fp_arg_code);
                 fp_arg_code += 1;
@@ -121,7 +129,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     for handler in processor.symbol_table.borrow().keys() {
-        if !processor.parameters.contains(handler) && *handler != ret_handler {
+        if !processor.parameters.contains(handler) && *handler != ret_handler && processor.used.borrow().contains(handler) {
             writeln!(f, "TCGv_i64 val_{handler} = tcg_temp_new_i64();")?;
         }
     }
