@@ -85,9 +85,11 @@ template <typename R, typename... Args, std::size_t... I>
 bool test_impl(R (*f)(Args...), R (*soft_f)(Args...), std::index_sequence<I...>)
 {
     auto args{std::make_tuple(prepare_arg<std::tuple_element_t<I, std::tuple<Args...>>>()...)};
-    auto op_out{std::apply(f, args)}, soft_op_out{std::apply(soft_f, args)};
 #ifdef print_result
     ((o << "args:") << ... << std::get<I>(args)) << '\n';
+#endif
+    auto op_out{std::apply(f, args)}, soft_op_out{std::apply(soft_f, args)};
+#ifdef print_result
     std::cout << "    " << trans(op_out) << ", " << trans(soft_op_out) << '\n';
 #endif
     return equal(op_out, soft_op_out);

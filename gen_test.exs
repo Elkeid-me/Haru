@@ -3,8 +3,8 @@
 import Enum
 
 defmodule GenTest do
-  @op [:+, :-, :*, :/, :/, :&, :|, :^, :"<<", :">>"]
-  @int_op MapSet.new([:/, :&, :|, :^, :"<<", :">>"])
+  @op [:+, :-, :*, :/, :%, :&, :|, :^, :"<<", :">>"]
+  @int_op MapSet.new([:%, :&, :|, :^, :"<<", :">>"])
   @int_type [
     :"signed char",
     :"unsigned char",
