@@ -100,7 +100,10 @@ pub enum Tcg {
     SetDestFprD { expr: Handler },
     Ret { float: bool },
 
-    RVArc { rv_32: Option<Box<Tcg>>, rv_64: Option<Box<Tcg>> }
+    RVArc { rv_32: Option<Box<Tcg>>, rv_64: Option<Box<Tcg>> },
+    PlaceHolder,
+
+    MovcondI64 { ret: Handler, cond_1: Handler, cond_2: Handler, arg_1: Handler, arg_2: Handler },
 }
 
 impl Display for Tcg {
@@ -214,6 +217,10 @@ impl Display for Tcg {
                 (None, Some(rv_64)) => write!(f, "#ifndef TARGET_RISCV32\n{rv_64}\n#endif"),
                 (None, None) => unreachable!(),
             },
+            Self::PlaceHolder => write!(f, ""),
+
+            Self::MovcondI64 { ret, cond_1, cond_2, arg_1, arg_2 } =>
+                write!(f, "tcg_gen_movcond_i32(TCG_COND_EQ, val_{ret}, val_{cond_1}, val_{cond_2}, val_{arg_1}, val_{arg_2});"),
         }
     }
 }

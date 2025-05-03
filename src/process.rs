@@ -3,6 +3,7 @@ mod fp_op;
 mod int_op;
 mod tcg;
 
+use llvm_ir::instruction::{HasResult, Select};
 use llvm_ir::{BasicBlock, Function, Instruction::*, Module, Name, Operand::*, Terminator::*};
 use llvm_ir::{Type::*, TypeRef, function::ParameterAttribute, types::Typed, types::Types};
 use std::collections::HashSet;
@@ -40,7 +41,125 @@ pub struct Processor<'a> {
     tmps: RefCell<[Option<Handler>; 8]>,
 }
 
+macro_rules! const_value {
+    ($constant: expr) => {
+        match $constant {
+            llvm_ir::Constant::Int { bits: _, value } => *value as i64,
+            llvm_ir::Constant::Float(llvm_ir::constant::Float::Single(single)) => {
+                (single.to_bits() as u64 | 0xffff_ffff_0000_0000) as i64
+            }
+            llvm_ir::Constant::Float(llvm_ir::constant::Float::Double(double)) => double.to_bits() as i64,
+            _ => todo!(),
+        }
+    };
+}
+
+macro_rules! move_value {
+    ($prc: expr, $value: expr, $ret_handler: expr) => {
+        match $value {
+            LocalOperand { name, ty: _ } => {
+                let v_handler = $prc.name_to_handler(name);
+                $prc.use_variable(v_handler);
+                vec![Tcg::MovI64 { ret: $ret_handler, arg: v_handler }]
+            }
+            ConstantOperand(constant) => vec![Tcg::MoviI64 { ret: $ret_handler, arg: const_value!(constant.as_ref()) }],
+            _ => todo!(),
+        }
+    };
+}
+
 impl<'a> Processor<'a> {
+    fn select(&self, select: &Select) -> Vec<Tcg> {
+        let ret_handler = self.name_to_handler(select.get_result());
+        self.use_variable(ret_handler);
+        match &select.condition {
+            LocalOperand { name, ty } if matches!(ty.as_ref(), IntegerType { bits: 1 }) => {
+                let cond_handler = self.name_to_handler(name);
+                let tmp_1 = self.get_tmp::<1>();
+                self.use_variable(cond_handler);
+                self.use_variable(tmp_1);
+
+                let mut ret = vec![Tcg::MoviI64 { ret: tmp_1, arg: 1 }];
+
+                match (&select.true_value, &select.false_value) {
+                    (LocalOperand { name: l_name, ty: _ }, LocalOperand { name: r_name, ty: _ }) => {
+                        let l_handler = self.name_to_handler(l_name);
+                        let r_handler = self.name_to_handler(r_name);
+                        self.use_variable(l_handler);
+                        self.use_variable(r_handler);
+                        ret.extend(vec![Tcg::MovcondI64 {
+                            ret: ret_handler,
+                            cond_1: cond_handler,
+                            cond_2: tmp_1,
+                            arg_1: l_handler,
+                            arg_2: r_handler,
+                        }]);
+                        ret
+                    }
+                    (LocalOperand { name, ty: _ }, ConstantOperand(constant)) => {
+                        let l_handler = self.name_to_handler(name);
+                        let r_handler = self.get_tmp::<2>();
+                        self.use_variable(l_handler);
+                        self.use_variable(r_handler);
+                        ret.extend(vec![
+                            Tcg::MoviI64 { ret: r_handler, arg: const_value!(constant.as_ref()) },
+                            Tcg::MovcondI64 {
+                                ret: ret_handler,
+                                cond_1: cond_handler,
+                                cond_2: tmp_1,
+                                arg_1: l_handler,
+                                arg_2: r_handler,
+                            },
+                        ]);
+                        ret
+                    }
+                    (ConstantOperand(constant), LocalOperand { name, ty: _ }) => {
+                        let l_handler = self.get_tmp::<2>();
+                        let r_handler = self.name_to_handler(name);
+                        self.use_variable(l_handler);
+                        self.use_variable(r_handler);
+                        ret.extend(vec![
+                            Tcg::MoviI64 { ret: l_handler, arg: const_value!(constant.as_ref()) },
+                            Tcg::MovcondI64 {
+                                ret: ret_handler,
+                                cond_1: cond_handler,
+                                cond_2: tmp_1,
+                                arg_1: l_handler,
+                                arg_2: r_handler,
+                            },
+                        ]);
+                        ret
+                    }
+                    (ConstantOperand(l_constant), ConstantOperand(r_constant)) => {
+                        let l_handler = self.get_tmp::<2>();
+                        let r_handler = self.get_tmp::<3>();
+                        self.use_variable(l_handler);
+                        self.use_variable(r_handler);
+                        ret.extend(vec![
+                            Tcg::MoviI64 { ret: l_handler, arg: const_value!(l_constant.as_ref()) },
+                            Tcg::MoviI64 { ret: r_handler, arg: const_value!(r_constant.as_ref()) },
+                            Tcg::MovcondI64 {
+                                ret: ret_handler,
+                                cond_1: cond_handler,
+                                cond_2: tmp_1,
+                                arg_1: l_handler,
+                                arg_2: r_handler,
+                            },
+                        ]);
+                        ret
+                    }
+                    _ => todo!(),
+                }
+            }
+            ConstantOperand(constant) => match constant.as_ref() {
+                llvm_ir::Constant::Int { bits: 1, value: 1 } => move_value!(self, &select.true_value, ret_handler),
+                llvm_ir::Constant::Int { bits: 1, value: 0 } => move_value!(self, &select.false_value, ret_handler),
+                _ => todo!(),
+            },
+            _ => todo!(),
+        }
+    }
+
     #[inline]
     pub fn get_tmp<const N: usize>(&self) -> Handler {
         if matches!(self.tmps.borrow()[N - 1].as_ref(), None) {
@@ -116,6 +235,7 @@ impl<'a> Processor<'a> {
                 SExt(sext) => self.sext(sext),
                 Trunc(trunc) => self.trunc(trunc),
                 ICmp(icmp) => self.icmp(icmp),
+                Select(select) => self.select(select),
                 _ => todo!(),
             })
             .flatten()
@@ -123,54 +243,58 @@ impl<'a> Processor<'a> {
 
         let mut ret = match &block.term {
             Ret(r) => match &r.return_operand {
-                Some(LocalOperand { name, ty }) => match ty.as_ref() {
-                    IntegerType { bits } if matches!(bits, 0..=32) => {
-                        let mut ret = vec![Tcg::rv_arc(
-                            Tcg::ExtrlI64I32 { ret: self.ret, arg: self.name_to_handler(name) },
-                            Tcg::MovI64 { ret: self.ret, arg: self.name_to_handler(name) },
-                        )];
-                        if matches!(self.ret_attr, Some(ParameterAttribute::SignExt)) {
-                            ret.extend([
-                                Tcg::rv_arc(
-                                    Tcg::ShliI32 { ret: self.ret, arg_1: self.ret, arg_2: (32 - bits) as i32 },
+                Some(LocalOperand { name, ty }) => {
+                    let arg_handler = self.name_to_handler(name);
+                    self.use_variable(arg_handler);
+                    match ty.as_ref() {
+                        IntegerType { bits } if matches!(bits, 0..=32) => {
+                            let mut ret = vec![Tcg::rv_arc(
+                                Tcg::ExtrlI64I32 { ret: self.ret, arg: arg_handler },
+                                Tcg::MovI64 { ret: self.ret, arg: arg_handler },
+                            )];
+                            if matches!(self.ret_attr, Some(ParameterAttribute::SignExt)) {
+                                ret.extend([
+                                    Tcg::rv_arc(
+                                        Tcg::ShliI32 { ret: self.ret, arg_1: self.ret, arg_2: (32 - bits) as i32 },
+                                        Tcg::ShliI64 { ret: self.ret, arg_1: self.ret, arg_2: (64 - bits) as i64 },
+                                    ),
+                                    Tcg::rv_arc(
+                                        Tcg::SariI32 { ret: self.ret, arg_1: self.ret, arg_2: (32 - bits) as i32 },
+                                        Tcg::SariI64 { ret: self.ret, arg_1: self.ret, arg_2: (64 - bits) as i64 },
+                                    ),
+                                ]);
+                            }
+                            ret.extend([Tcg::SetDestGpr { expr: self.ret }, Tcg::Ret { float: self.use_float }]);
+                            ret
+                        }
+                        IntegerType { bits } if matches!(bits, 33..=64) => {
+                            let mut ret = vec![Tcg::MovI64 { ret: self.ret, arg: arg_handler }];
+                            if matches!(self.ret_attr, Some(ParameterAttribute::SignExt)) {
+                                ret.extend([
                                     Tcg::ShliI64 { ret: self.ret, arg_1: self.ret, arg_2: (64 - bits) as i64 },
-                                ),
-                                Tcg::rv_arc(
-                                    Tcg::SariI32 { ret: self.ret, arg_1: self.ret, arg_2: (32 - bits) as i32 },
                                     Tcg::SariI64 { ret: self.ret, arg_1: self.ret, arg_2: (64 - bits) as i64 },
-                                ),
-                            ]);
-                        }
-                        ret.extend([Tcg::SetDestGpr { expr: self.ret }, Tcg::Ret { float: self.use_float }]);
-                        ret
-                    }
-                    IntegerType { bits } if matches!(bits, 33..=64) => {
-                        let mut ret = vec![Tcg::MovI64 { ret: self.ret, arg: self.name_to_handler(name) }];
-                        if matches!(self.ret_attr, Some(ParameterAttribute::SignExt)) {
+                                ]);
+                            }
                             ret.extend([
-                                Tcg::ShliI64 { ret: self.ret, arg_1: self.ret, arg_2: (64 - bits) as i64 },
-                                Tcg::SariI64 { ret: self.ret, arg_1: self.ret, arg_2: (64 - bits) as i64 },
+                                Tcg::rv_arc(Tcg::SetDestGprPair { expr: self.ret }, Tcg::SetDestGpr { expr: self.ret }),
+                                Tcg::Ret { float: self.use_float },
                             ]);
+                            ret
                         }
-                        ret.extend([
-                            Tcg::rv_arc(Tcg::SetDestGprPair { expr: self.ret }, Tcg::SetDestGpr { expr: self.ret }),
+                        FPType(llvm_ir::types::FPType::Double) => vec![
+                            Tcg::MovI64 { ret: self.ret, arg: arg_handler },
+                            Tcg::SetDestFprD { expr: self.ret },
                             Tcg::Ret { float: self.use_float },
-                        ]);
-                        ret
+                        ],
+                        FPType(llvm_ir::types::FPType::Single) => vec![
+                            Tcg::MovI64 { ret: self.ret, arg: arg_handler },
+                            Tcg::OriI64 { ret: self.ret, arg_1: self.ret, arg_2: 0xffff_ffff_0000_0000u64 as i64 },
+                            Tcg::SetDestFprHs { expr: self.ret },
+                            Tcg::Ret { float: self.use_float },
+                        ],
+                        _ => todo!(),
                     }
-                    FPType(llvm_ir::types::FPType::Double) => vec![
-                        Tcg::MovI64 { ret: self.ret, arg: self.name_to_handler(name) },
-                        Tcg::SetDestFprD { expr: self.ret },
-                        Tcg::Ret { float: self.use_float },
-                    ],
-                    FPType(llvm_ir::types::FPType::Single) => vec![
-                        Tcg::MovI64 { ret: self.ret, arg: self.name_to_handler(name) },
-                        Tcg::OriI64 { ret: self.ret, arg_1: self.ret, arg_2: 0xffff_ffff_0000_0000u64 as i64 },
-                        Tcg::SetDestFprHs { expr: self.ret },
-                        Tcg::Ret { float: self.use_float },
-                    ],
-                    _ => todo!(),
-                },
+                }
                 Some(ConstantOperand(constant)) => match constant.as_ref() {
                     llvm_ir::Constant::Int { bits, value } => match bits {
                         0..=32 => vec![

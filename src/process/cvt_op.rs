@@ -26,10 +26,11 @@ impl Processor<'_> {
             Tcg::AndI64 { ret: tmp_2, arg_1: r_handler, arg_2: tmp_2 },
             Tcg::ShrI64 { ret: tmp_2, arg_1: tmp_2, arg_2: tmp_1 }, // tmp_2 = 1075 - exp < 0 ? 0 : frac >> (1075 - exp)
             // ---
-            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0 }, // tmp_1 = exp - 1075
+            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: -1 }, // tmp_1 = exp - 1076
             Tcg::SariI64 { ret: tmp_3, arg_1: tmp_1, arg_2: 63 },
             Tcg::XoriI64 { ret: tmp_3, arg_1: tmp_3, arg_2: u64::MAX as i64 },
             Tcg::AndI64 { ret: tmp_3, arg_1: r_handler, arg_2: tmp_3 },
+            Tcg::AddiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 1 },
             Tcg::ShlI64 { ret: tmp_1, arg_1: tmp_3, arg_2: tmp_1 }, // tmp_1 = frac << (exp - 1075)
             // ---
             Tcg::OrI64 { ret: r_handler, arg_1: tmp_1, arg_2: tmp_2 },
@@ -86,17 +87,18 @@ impl Processor<'_> {
             Tcg::OriI64 { ret: r_handler, arg_1: r_handler, arg_2: 1i64 << 52 }, // r_handler = frac
             Tcg::ExtactI64 { ret: tmp_1, arg: tmp_4, pos: 52, len: 11 },         // tmp_1 = exp
             // ---
-            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 1075 }, // tmp_1 = 1075 - exp
+            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 1075 },
             Tcg::SariI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 63 },
-            Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_2, arg_2: u64::MAX as i64 },
+            Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_2, arg_2: u64::MAX as i64 }, // 1075 - exp < 0 ? 0 : 0xfff
             Tcg::AndI64 { ret: tmp_2, arg_1: r_handler, arg_2: tmp_2 },
             Tcg::ShrI64 { ret: tmp_2, arg_1: tmp_2, arg_2: tmp_1 }, // tmp_2 = 1075 - exp < 0 ? 0 : frac >> (1075 - exp)
             // ---
-            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0 }, // tmp_1 = exp - 1075
+            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: -1 }, // tmp_1 = exp - 1076
             Tcg::SariI64 { ret: tmp_3, arg_1: tmp_1, arg_2: 63 },
-            Tcg::XoriI64 { ret: tmp_3, arg_1: tmp_3, arg_2: u64::MAX as i64 },
+            Tcg::XoriI64 { ret: tmp_3, arg_1: tmp_3, arg_2: u64::MAX as i64 }, // exp - 1076 < 0 ? 0 : 0xfff
             Tcg::AndI64 { ret: tmp_3, arg_1: r_handler, arg_2: tmp_3 },
-            Tcg::ShlI64 { ret: tmp_1, arg_1: tmp_3, arg_2: tmp_1 }, // tmp_1 = frac << (exp - 1075)
+            Tcg::AddiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 1 },
+            Tcg::ShlI64 { ret: tmp_1, arg_1: tmp_3, arg_2: tmp_1 },
             // ---
             Tcg::OrI64 { ret: r_handler, arg_1: tmp_1, arg_2: tmp_2 },
             // ---
@@ -112,18 +114,6 @@ impl Processor<'_> {
             Tcg::SubfiI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 1022 },
             Tcg::SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 63 },
             Tcg::AndI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_2 },
-            // ---
-            // NaN:
-            // Tcg::ExtactI64 { ret: tmp_2, arg: tmp_4, pos: 0, len: 52 },
-            // Tcg::SubiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0x7ff },
-            // Tcg::SariI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 63 },
-            // Tcg::SubfiI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 0 },
-            // Tcg::SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 63 },
-            // Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_2, arg_2: u64::MAX as i64 },
-            // Tcg::OrI64 { ret: tmp_1, arg_1: tmp_1, arg_2: tmp_2 }, // cond
-            // Tcg::XoriI64 { ret: r_handler, arg_1: r_handler, arg_2: (u64::MAX >> 1) as i64 },
-            // Tcg::AndI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_1 },
-            // Tcg::XoriI64 { ret: r_handler, arg_1: r_handler, arg_2: (u64::MAX >> 1) as i64 },
         ]
     }
 
@@ -339,10 +329,24 @@ impl Processor<'_> {
                 let v_handler = self.name_to_handler(name);
                 self.use_variable(v_handler);
                 match (ty.as_ref(), r_ty) {
-                    (IntegerType { bits: 0..=32 }, FPType(FPType::Double)) => vec![FcvtDWu { ret: r_handler, arg: v_handler }],
-                    (IntegerType { bits: 0..=32 }, FPType(FPType::Single)) => vec![FcvtSWu { ret: r_handler, arg: v_handler }],
-                    (IntegerType { bits: 33..=64 }, FPType(FPType::Double)) => vec![FcvtDLu { ret: r_handler, arg: v_handler }],
-                    (IntegerType { bits: 33..=64 }, FPType(FPType::Single)) => vec![FcvtSLu { ret: r_handler, arg: v_handler }],
+                    (IntegerType { bits }, FPType(FPType::Double)) if matches!(bits, 0..=32) => vec![
+                        ExtactI64 { ret: r_handler, arg: v_handler, pos: 0, len: *bits },
+                        FcvtDWu { ret: r_handler, arg: r_handler },
+                    ],
+                    (IntegerType { bits }, FPType(FPType::Single)) if matches!(bits, 0..=32) => vec![
+                        ExtactI64 { ret: r_handler, arg: v_handler, pos: 0, len: *bits },
+                        FcvtSWu { ret: r_handler, arg: r_handler },
+                    ],
+                    (IntegerType { bits }, FPType(FPType::Double)) if matches!(bits, 33..64) => vec![
+                        ExtactI64 { ret: r_handler, arg: v_handler, pos: 0, len: *bits },
+                        FcvtDLu { ret: r_handler, arg: r_handler },
+                    ],
+                    (IntegerType { bits }, FPType(FPType::Single)) if matches!(bits, 33..64) => vec![
+                        ExtactI64 { ret: r_handler, arg: v_handler, pos: 0, len: *bits },
+                        FcvtSLu { ret: r_handler, arg: r_handler },
+                    ],
+                    (IntegerType { bits: 64 }, FPType(FPType::Double)) => vec![FcvtDLu { ret: r_handler, arg: v_handler }],
+                    (IntegerType { bits: 64 }, FPType(FPType::Single)) => vec![FcvtSLu { ret: r_handler, arg: v_handler }],
                     _ => todo!(),
                 }
             }
@@ -411,6 +415,10 @@ impl Processor<'_> {
 
     pub fn sext(&self, sext: &SExt) -> Vec<Tcg> {
         let ret_handler = self.name_to_handler(sext.get_result());
+        let ret_bits = match self.symbol_table.borrow().get(&ret_handler).unwrap().as_ref() {
+            IntegerType { bits } => *bits,
+            _ => todo!(),
+        };
         self.use_variable(ret_handler);
         match sext.get_operand() {
             LocalOperand { name, ty } => {
@@ -420,12 +428,15 @@ impl Processor<'_> {
                     IntegerType { bits } => vec![
                         ShliI64 { ret: ret_handler, arg_1: v_handler, arg_2: (64 - bits) as i64 },
                         SariI64 { ret: ret_handler, arg_1: ret_handler, arg_2: (64 - bits) as i64 },
+                        ExtactI64 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
                     ],
                     _ => todo!(),
                 }
             }
             ConstantOperand(constant) => match constant.as_ref() {
-                Constant::Int { bits, value } => vec![MoviI64 { ret: ret_handler, arg: sign_extend_const(*value, *bits) }],
+                Constant::Int { bits, value } => {
+                    vec![MoviI64 { ret: ret_handler, arg: extract_const_i64(sign_extend_const(*value, *bits), ret_bits) }]
+                }
                 _ => todo!(),
             },
             _ => todo!(),
