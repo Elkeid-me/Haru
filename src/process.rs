@@ -3,6 +3,7 @@ mod fp_op;
 mod int_op;
 mod tcg;
 
+use int_op::sign_extend_const;
 use llvm_ir::instruction::{HasResult, Select};
 use llvm_ir::{BasicBlock, Function, Instruction::*, Module, Name, Operand::*, Terminator::*};
 use llvm_ir::{Type::*, TypeRef, function::ParameterAttribute, types::Typed, types::Types};
@@ -248,10 +249,13 @@ impl<'a> Processor<'a> {
                     self.use_variable(arg_handler);
                     match ty.as_ref() {
                         IntegerType { bits } if matches!(bits, 0..=32) => {
-                            let mut ret = vec![Tcg::rv_arc(
-                                Tcg::ExtrlI64I32 { ret: self.ret, arg: arg_handler },
-                                Tcg::MovI64 { ret: self.ret, arg: arg_handler },
-                            )];
+                            let mut ret = vec![
+                                Tcg::ExtactI64 { ret: arg_handler, arg: arg_handler, pos: 0, len: *bits },
+                                Tcg::rv_arc(
+                                    Tcg::ExtrlI64I32 { ret: self.ret, arg: arg_handler },
+                                    Tcg::MovI64 { ret: self.ret, arg: arg_handler },
+                                ),
+                            ];
                             if matches!(self.ret_attr, Some(ParameterAttribute::SignExt)) {
                                 ret.extend([
                                     Tcg::rv_arc(
@@ -268,7 +272,7 @@ impl<'a> Processor<'a> {
                             ret
                         }
                         IntegerType { bits } if matches!(bits, 33..=64) => {
-                            let mut ret = vec![Tcg::MovI64 { ret: self.ret, arg: arg_handler }];
+                            let mut ret = vec![Tcg::ExtactI64 { ret: self.ret, arg: arg_handler, pos: 0, len: *bits }];
                             if matches!(self.ret_attr, Some(ParameterAttribute::SignExt)) {
                                 ret.extend([
                                     Tcg::ShliI64 { ret: self.ret, arg_1: self.ret, arg_2: (64 - bits) as i64 },
@@ -296,22 +300,29 @@ impl<'a> Processor<'a> {
                     }
                 }
                 Some(ConstantOperand(constant)) => match constant.as_ref() {
-                    llvm_ir::Constant::Int { bits, value } => match bits {
-                        0..=32 => vec![
-                            Tcg::rv_arc(
-                                Tcg::MoviI32 { ret: self.ret, arg: *value as i32 },
-                                Tcg::MoviI64 { ret: self.ret, arg: *value as i64 },
-                            ),
-                            Tcg::SetDestGpr { expr: self.ret },
-                            Tcg::Ret { float: self.use_float },
-                        ],
-                        33..=64 => vec![
-                            Tcg::MoviI64 { ret: self.ret, arg: *value as i64 },
-                            Tcg::rv_arc(Tcg::SetDestGprPair { expr: self.ret }, Tcg::SetDestGpr { expr: self.ret }),
-                            Tcg::Ret { float: self.use_float },
-                        ],
-                        _ => todo!(),
-                    },
+                    llvm_ir::Constant::Int { bits, value } => {
+                        let value = if matches!(self.ret_attr, Some(ParameterAttribute::SignExt)) {
+                            sign_extend_const(*value, *bits)
+                        } else {
+                            *value as i64
+                        };
+                        match bits {
+                            0..=32 => vec![
+                                Tcg::rv_arc(
+                                    Tcg::MoviI32 { ret: self.ret, arg: value as i32 },
+                                    Tcg::MoviI64 { ret: self.ret, arg: value },
+                                ),
+                                Tcg::SetDestGpr { expr: self.ret },
+                                Tcg::Ret { float: self.use_float },
+                            ],
+                            33..=64 => vec![
+                                Tcg::MoviI64 { ret: self.ret, arg: value },
+                                Tcg::rv_arc(Tcg::SetDestGprPair { expr: self.ret }, Tcg::SetDestGpr { expr: self.ret }),
+                                Tcg::Ret { float: self.use_float },
+                            ],
+                            _ => todo!(),
+                        }
+                    }
                     llvm_ir::Constant::Float(llvm_ir::constant::Float::Single(single)) => vec![
                         Tcg::MoviI64 { ret: self.ret, arg: (single.to_bits() as u64 | 0xffff_ffff_0000_0000) as i64 },
                         Tcg::SetDestFprHs { expr: self.ret },
@@ -322,11 +333,10 @@ impl<'a> Processor<'a> {
                         Tcg::SetDestFprD { expr: self.ret },
                         Tcg::Ret { float: self.use_float },
                     ],
-                    llvm_ir::Constant::Poison(_) => vec![
-                        Tcg::rv_arc(Tcg::MoviI32 { ret: self.ret, arg: 0 }, Tcg::MoviI64 { ret: self.ret, arg: 0 }),
-                        Tcg::SetDestGpr { expr: self.ret },
-                        Tcg::Ret { float: self.use_float },
-                    ],
+                    llvm_ir::Constant::Poison(_) => {
+                        eprintln!("错误：函数返回 `poison`.");
+                        std::process::exit(1);
+                    }
                     _ => todo!(),
                 },
                 _ => todo!(),

@@ -217,10 +217,10 @@ impl Display for Tcg {
                 (None, Some(rv_64)) => write!(f, "#ifndef TARGET_RISCV32\n{rv_64}\n#endif"),
                 (None, None) => unreachable!(),
             },
-            Self::PlaceHolder => write!(f, ""),
+            Self::PlaceHolder => Ok(()),
 
             Self::MovcondI64 { ret, cond_1, cond_2, arg_1, arg_2 } =>
-                write!(f, "tcg_gen_movcond_i32(TCG_COND_EQ, val_{ret}, val_{cond_1}, val_{cond_2}, val_{arg_1}, val_{arg_2});"),
+                write!(f, "tcg_gen_movcond_i64(TCG_COND_EQ, val_{ret}, val_{cond_1}, val_{cond_2}, val_{arg_1}, val_{arg_2});"),
         }
     }
 }

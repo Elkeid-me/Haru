@@ -32,14 +32,20 @@ pub struct Args {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let module = match (args.bc, args.ll) {
-        (true, true) => panic!("那我问你，一个 LLVM IR 文件怎么既是二进制又是文本"),
+        (true, true) => {
+            eprintln!("那我问你，一个 LLVM IR 文件怎么既是二进制又是文本.");
+            std::process::exit(1);
+        }
         (true, false) => Module::from_bc_path(args.input)?,
         (false, true) => Module::from_ir_path(args.input)?,
         // 这里假定 `OsStr` 一定是合法的 Unicode
         (false, false) => match args.input.extension().map(|ex| ex.to_str().unwrap()) {
             Some("ll") => Module::from_ir_path(args.input)?,
             Some("bc") => Module::from_bc_path(args.input)?,
-            _ => panic!("未知的扩展名，猜不出来喵"),
+            ext => {
+                eprintln!("错误：未指定扩展名 `{}` 未知.", ext.unwrap_or(""));
+                std::process::exit(1);
+            }
         },
     };
 
@@ -47,7 +53,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let op_function = match module.get_func_by_name(func_name) {
         Some(func) => func,
-        None => panic!("没有找到名为 `{func_name}` 的函数",),
+        None => {
+            eprintln!("没有找到名为 `{func_name}` 的函数");
+            std::process::exit(1);
+        }
     };
 
     let inst = args.inst.unwrap_or(func_name.to_string());
