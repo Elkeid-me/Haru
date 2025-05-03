@@ -26,11 +26,10 @@ impl Processor<'_> {
             Tcg::AndI64 { ret: tmp_2, arg_1: r_handler, arg_2: tmp_2 },
             Tcg::ShrI64 { ret: tmp_2, arg_1: tmp_2, arg_2: tmp_1 }, // tmp_2 = 1075 - exp < 0 ? 0 : frac >> (1075 - exp)
             // ---
-            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: -1 }, // tmp_1 = exp - 1076
+            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0 }, // tmp_1 = exp - 1076
             Tcg::SariI64 { ret: tmp_3, arg_1: tmp_1, arg_2: 63 },
             Tcg::XoriI64 { ret: tmp_3, arg_1: tmp_3, arg_2: u64::MAX as i64 },
             Tcg::AndI64 { ret: tmp_3, arg_1: r_handler, arg_2: tmp_3 },
-            Tcg::AddiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 1 },
             Tcg::ShlI64 { ret: tmp_1, arg_1: tmp_3, arg_2: tmp_1 }, // tmp_1 = frac << (exp - 1075)
             // ---
             Tcg::OrI64 { ret: r_handler, arg_1: tmp_1, arg_2: tmp_2 },
@@ -93,11 +92,10 @@ impl Processor<'_> {
             Tcg::AndI64 { ret: tmp_2, arg_1: r_handler, arg_2: tmp_2 },
             Tcg::ShrI64 { ret: tmp_2, arg_1: tmp_2, arg_2: tmp_1 }, // tmp_2 = 1075 - exp < 0 ? 0 : frac >> (1075 - exp)
             // ---
-            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: -1 }, // tmp_1 = exp - 1076
+            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0 }, // tmp_1 = exp - 1076
             Tcg::SariI64 { ret: tmp_3, arg_1: tmp_1, arg_2: 63 },
             Tcg::XoriI64 { ret: tmp_3, arg_1: tmp_3, arg_2: u64::MAX as i64 }, // exp - 1076 < 0 ? 0 : 0xfff
             Tcg::AndI64 { ret: tmp_3, arg_1: r_handler, arg_2: tmp_3 },
-            Tcg::AddiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 1 },
             Tcg::ShlI64 { ret: tmp_1, arg_1: tmp_3, arg_2: tmp_1 },
             // ---
             Tcg::OrI64 { ret: r_handler, arg_1: tmp_1, arg_2: tmp_2 },
