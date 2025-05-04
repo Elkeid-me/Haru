@@ -45,11 +45,11 @@ pub struct Processor<'a> {
 macro_rules! const_value {
     ($constant: expr) => {
         match $constant {
-            llvm_ir::Constant::Int { bits: _, value } => *value as i64,
+            llvm_ir::Constant::Int { bits: _, value } => (*value as i64).into(),
             llvm_ir::Constant::Float(llvm_ir::constant::Float::Single(single)) => {
-                (single.to_bits() as u64 | 0xffff_ffff_0000_0000) as i64
+                ((single.to_bits() as u64 | 0xffff_ffff_0000_0000) as i64).into()
             }
-            llvm_ir::Constant::Float(llvm_ir::constant::Float::Double(double)) => double.to_bits() as i64,
+            llvm_ir::Constant::Float(llvm_ir::constant::Float::Double(double)) => (double.to_bits() as i64).into(),
             _ => todo!(),
         }
     };
@@ -80,7 +80,7 @@ impl<'a> Processor<'a> {
                 self.use_variable(cond_handler);
                 self.use_variable(tmp_1);
 
-                let mut ret = vec![Tcg::MoviI64 { ret: tmp_1, arg: 1 }];
+                let mut ret = vec![Tcg::MoviI64 { ret: tmp_1, arg: 1.into() }];
 
                 match (&select.true_value, &select.false_value) {
                     (LocalOperand { name: l_name, ty: _ }, LocalOperand { name: r_name, ty: _ }) => {
@@ -259,12 +259,12 @@ impl<'a> Processor<'a> {
                             if matches!(self.ret_attr, Some(ParameterAttribute::SignExt)) {
                                 ret.extend([
                                     Tcg::rv_arc(
-                                        Tcg::ShliI32 { ret: self.ret, arg_1: self.ret, arg_2: (32 - bits) as i32 },
-                                        Tcg::ShliI64 { ret: self.ret, arg_1: self.ret, arg_2: (64 - bits) as i64 },
+                                        Tcg::ShliI32 { ret: self.ret, arg_1: self.ret, arg_2: ((32 - bits) as i32).into() },
+                                        Tcg::ShliI64 { ret: self.ret, arg_1: self.ret, arg_2: ((64 - bits) as i64).into() },
                                     ),
                                     Tcg::rv_arc(
-                                        Tcg::SariI32 { ret: self.ret, arg_1: self.ret, arg_2: (32 - bits) as i32 },
-                                        Tcg::SariI64 { ret: self.ret, arg_1: self.ret, arg_2: (64 - bits) as i64 },
+                                        Tcg::SariI32 { ret: self.ret, arg_1: self.ret, arg_2: ((32 - bits) as i32).into() },
+                                        Tcg::SariI64 { ret: self.ret, arg_1: self.ret, arg_2: ((64 - bits) as i64).into() },
                                     ),
                                 ]);
                             }
@@ -275,8 +275,8 @@ impl<'a> Processor<'a> {
                             let mut ret = vec![Tcg::ExtactI64 { ret: self.ret, arg: arg_handler, pos: 0, len: *bits }];
                             if matches!(self.ret_attr, Some(ParameterAttribute::SignExt)) {
                                 ret.extend([
-                                    Tcg::ShliI64 { ret: self.ret, arg_1: self.ret, arg_2: (64 - bits) as i64 },
-                                    Tcg::SariI64 { ret: self.ret, arg_1: self.ret, arg_2: (64 - bits) as i64 },
+                                    Tcg::ShliI64 { ret: self.ret, arg_1: self.ret, arg_2: ((64 - bits) as i64).into() },
+                                    Tcg::SariI64 { ret: self.ret, arg_1: self.ret, arg_2: ((64 - bits) as i64).into() },
                                 ]);
                             }
                             ret.extend([
@@ -292,7 +292,7 @@ impl<'a> Processor<'a> {
                         ],
                         FPType(llvm_ir::types::FPType::Single) => vec![
                             Tcg::MovI64 { ret: self.ret, arg: arg_handler },
-                            Tcg::OriI64 { ret: self.ret, arg_1: self.ret, arg_2: 0xffff_ffff_0000_0000u64 as i64 },
+                            Tcg::OriI64 { ret: self.ret, arg_1: self.ret, arg_2: (0xffff_ffff_0000_0000u64 as i64).into() },
                             Tcg::SetDestFprHs { expr: self.ret },
                             Tcg::Ret { float: self.use_float },
                         ],
@@ -309,14 +309,14 @@ impl<'a> Processor<'a> {
                         match bits {
                             0..=32 => vec![
                                 Tcg::rv_arc(
-                                    Tcg::MoviI32 { ret: self.ret, arg: value as i32 },
-                                    Tcg::MoviI64 { ret: self.ret, arg: value },
+                                    Tcg::MoviI32 { ret: self.ret, arg: (value as i32).into() },
+                                    Tcg::MoviI64 { ret: self.ret, arg: value.into() },
                                 ),
                                 Tcg::SetDestGpr { expr: self.ret },
                                 Tcg::Ret { float: self.use_float },
                             ],
                             33..=64 => vec![
-                                Tcg::MoviI64 { ret: self.ret, arg: value },
+                                Tcg::MoviI64 { ret: self.ret, arg: value.into() },
                                 Tcg::rv_arc(Tcg::SetDestGprPair { expr: self.ret }, Tcg::SetDestGpr { expr: self.ret }),
                                 Tcg::Ret { float: self.use_float },
                             ],
@@ -324,12 +324,12 @@ impl<'a> Processor<'a> {
                         }
                     }
                     llvm_ir::Constant::Float(llvm_ir::constant::Float::Single(single)) => vec![
-                        Tcg::MoviI64 { ret: self.ret, arg: (single.to_bits() as u64 | 0xffff_ffff_0000_0000) as i64 },
+                        Tcg::MoviI64 { ret: self.ret, arg: ((single.to_bits() as u64 | 0xffff_ffff_0000_0000) as i64).into() },
                         Tcg::SetDestFprHs { expr: self.ret },
                         Tcg::Ret { float: self.use_float },
                     ],
                     llvm_ir::Constant::Float(llvm_ir::constant::Float::Double(double)) => vec![
-                        Tcg::MoviI64 { ret: self.ret, arg: double.to_bits() as i64 },
+                        Tcg::MoviI64 { ret: self.ret, arg: (double.to_bits() as i64).into() },
                         Tcg::SetDestFprD { expr: self.ret },
                         Tcg::Ret { float: self.use_float },
                     ],

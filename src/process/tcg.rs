@@ -1,20 +1,48 @@
 use super::Handler;
 use std::fmt::{Display, Formatter, Result};
 
+pub struct IntWrapper<T> {
+    value: T,
+}
+
+impl From<i32> for IntWrapper<i32> {
+    fn from(value: i32) -> Self {
+        Self { value }
+    }
+}
+
+impl From<i64> for IntWrapper<i64> {
+    fn from(value: i64) -> Self {
+        Self { value }
+    }
+}
+
+impl Display for IntWrapper<i64> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        if self.value == i64::MIN { write!(f, "(1ll << 63)",) } else { write!(f, "{}", self.value) }
+    }
+}
+
+impl Display for IntWrapper<i32> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "{}", self.value)
+    }
+}
+
 /// 名义上叫 TCG，实际上因为浮点函数，不是 TCG。
 pub enum Tcg {
-    ShliI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
-    SariI32 { ret: Handler, arg_1: Handler, arg_2: i32 },
+    ShliI32 { ret: Handler, arg_1: Handler, arg_2: IntWrapper<i32> },
+    SariI32 { ret: Handler, arg_1: Handler, arg_2: IntWrapper<i32> },
 
-    AddiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
+    AddiI64 { ret: Handler, arg_1: Handler, arg_2: IntWrapper<i64> },
     AddI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
     /// 为了代码的简化，这里 `subfi_i64` 与实际 TCG 对应函数的后两个参数是反过来的
-    SubfiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
-    SubiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
+    SubfiI64 { ret: Handler, arg_1: Handler, arg_2: IntWrapper<i64> },
+    SubiI64 { ret: Handler, arg_1: Handler, arg_2: IntWrapper<i64> },
     SubI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
-    MuliI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
+    MuliI64 { ret: Handler, arg_1: Handler, arg_2: IntWrapper<i64> },
     MulI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
     DivI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
@@ -22,26 +50,26 @@ pub enum Tcg {
     RemI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
     RemuI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
-    AndiI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
+    AndiI64 { ret: Handler, arg_1: Handler, arg_2: IntWrapper<i64> },
     AndI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
-    OriI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
+    OriI64 { ret: Handler, arg_1: Handler, arg_2: IntWrapper<i64> },
     OrI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
-    XoriI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
+    XoriI64 { ret: Handler, arg_1: Handler, arg_2: IntWrapper<i64> },
     XorI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
-    ShliI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
+    ShliI64 { ret: Handler, arg_1: Handler, arg_2: IntWrapper<i64> },
     ShlI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
-    ShriI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
+    ShriI64 { ret: Handler, arg_1: Handler, arg_2: IntWrapper<i64> },
     ShrI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
-    SariI64 { ret: Handler, arg_1: Handler, arg_2: i64 },
+    SariI64 { ret: Handler, arg_1: Handler, arg_2: IntWrapper<i64> },
     SarI64 { ret: Handler, arg_1: Handler, arg_2: Handler },
 
-    MoviI32 { ret: Handler, arg: i32 },
-    MoviI64 { ret: Handler, arg: i64 },
+    MoviI32 { ret: Handler, arg: IntWrapper<i32> },
+    MoviI64 { ret: Handler, arg: IntWrapper<i64> },
     MovI64 { ret: Handler, arg: Handler },
     ExtactI64 { ret: Handler, arg: Handler, pos: u32, len: u32 },
     ExtrlI64I32 { ret: Handler, arg: Handler },

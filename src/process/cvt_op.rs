@@ -17,53 +17,53 @@ impl Processor<'_> {
         self.use_variable(r_handler);
         vec![
             Tcg::ExtactI64 { ret: r_handler, arg: v_handler, pos: 0, len: 52 },
-            Tcg::OriI64 { ret: r_handler, arg_1: r_handler, arg_2: 1i64 << 52 }, // r_handler = frac
-            Tcg::ExtactI64 { ret: tmp_1, arg: v_handler, pos: 52, len: 11 },     // tmp_1 = exp
+            Tcg::OriI64 { ret: r_handler, arg_1: r_handler, arg_2: (1i64 << 52).into() }, // r_handler = frac
+            Tcg::ExtactI64 { ret: tmp_1, arg: v_handler, pos: 52, len: 11 },              // tmp_1 = exp
             // ---
-            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 1075 }, // tmp_1 = 1075 - exp
-            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 63 },
-            Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_2, arg_2: u64::MAX as i64 },
+            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 1075.into() }, // tmp_1 = 1075 - exp
+            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 63.into() },
+            Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_2, arg_2: (-1).into() },
             Tcg::AndI64 { ret: tmp_2, arg_1: r_handler, arg_2: tmp_2 },
             Tcg::ShrI64 { ret: tmp_2, arg_1: tmp_2, arg_2: tmp_1 }, // tmp_2 = 1075 - exp < 0 ? 0 : frac >> (1075 - exp)
             // ---
-            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0 }, // tmp_1 = exp - 1076
-            Tcg::SariI64 { ret: tmp_3, arg_1: tmp_1, arg_2: 63 },
-            Tcg::XoriI64 { ret: tmp_3, arg_1: tmp_3, arg_2: u64::MAX as i64 },
+            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0.into() }, // tmp_1 = exp - 1076
+            Tcg::SariI64 { ret: tmp_3, arg_1: tmp_1, arg_2: 63.into() },
+            Tcg::XoriI64 { ret: tmp_3, arg_1: tmp_3, arg_2: (-1).into() },
             Tcg::AndI64 { ret: tmp_3, arg_1: r_handler, arg_2: tmp_3 },
             Tcg::ShlI64 { ret: tmp_1, arg_1: tmp_3, arg_2: tmp_1 }, // tmp_1 = frac << (exp - 1075)
             // ---
             Tcg::OrI64 { ret: r_handler, arg_1: tmp_1, arg_2: tmp_2 },
             // ---
-            Tcg::SariI64 { ret: tmp_1, arg_1: v_handler, arg_2: 63 }, // sign
+            Tcg::SariI64 { ret: tmp_1, arg_1: v_handler, arg_2: 63.into() }, // sign
             Tcg::XorI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_1 },
-            Tcg::ShriI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 63 },
+            Tcg::ShriI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 63.into() },
             Tcg::AddI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_2 },
             // ---
             // Out of range
             Tcg::ExtactI64 { ret: tmp_3, arg: v_handler, pos: 52, len: 11 },
-            Tcg::SubfiI64 { ret: tmp_3, arg_1: tmp_3, arg_2: 1085 },
-            Tcg::SariI64 { ret: tmp_3, arg_1: tmp_3, arg_2: 63 }, // tmp_3 is cond
-            Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_1, arg_2: (u64::MAX >> 1) as i64 }, // `tmp_2` is `i64::MIN` or MAX`
+            Tcg::SubfiI64 { ret: tmp_3, arg_1: tmp_3, arg_2: 1085.into() },
+            Tcg::SariI64 { ret: tmp_3, arg_1: tmp_3, arg_2: 63.into() }, // tmp_3 is cond
+            Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_1, arg_2: i64::MAX.into() }, // `tmp_2` is `i64::MIN` or MAX`
             Tcg::XorI64 { ret: tmp_2, arg_1: tmp_2, arg_2: r_handler },
             Tcg::AndI64 { ret: tmp_2, arg_1: tmp_2, arg_2: tmp_3 },
             Tcg::XorI64 { ret: r_handler, arg_1: tmp_2, arg_2: r_handler },
             // ---
             Tcg::ExtactI64 { ret: tmp_1, arg: v_handler, pos: 52, len: 11 },
-            Tcg::SubfiI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 1022 },
-            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 63 },
+            Tcg::SubfiI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 1022.into() },
+            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 63.into() },
             Tcg::AndI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_2 },
             // ---
             // NaN:
             Tcg::ExtactI64 { ret: tmp_2, arg: v_handler, pos: 0, len: 52 },
-            Tcg::SubiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0x7ff },
-            Tcg::SariI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 63 },
-            Tcg::SubfiI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 0 },
-            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 63 },
-            Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_2, arg_2: u64::MAX as i64 },
+            Tcg::SubiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0x7ff.into() },
+            Tcg::SariI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 63.into() },
+            Tcg::SubfiI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 0.into() },
+            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 63.into() },
+            Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_2, arg_2: (-1).into() },
             Tcg::OrI64 { ret: tmp_1, arg_1: tmp_1, arg_2: tmp_2 }, // cond
-            Tcg::XoriI64 { ret: r_handler, arg_1: r_handler, arg_2: (u64::MAX >> 1) as i64 },
+            Tcg::XoriI64 { ret: r_handler, arg_1: r_handler, arg_2: i64::MAX.into() },
             Tcg::AndI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_1 },
-            Tcg::XoriI64 { ret: r_handler, arg_1: r_handler, arg_2: (u64::MAX >> 1) as i64 },
+            Tcg::XoriI64 { ret: r_handler, arg_1: r_handler, arg_2: i64::MAX.into() },
         ]
     }
 
@@ -79,22 +79,22 @@ impl Processor<'_> {
         self.use_variable(v_handler);
         self.use_variable(r_handler);
         vec![
-            Tcg::SariI64 { ret: tmp_4, arg_1: v_handler, arg_2: 63 },
-            Tcg::XoriI64 { ret: tmp_4, arg_1: tmp_4, arg_2: u64::MAX as i64 },
+            Tcg::SariI64 { ret: tmp_4, arg_1: v_handler, arg_2: 63.into() },
+            Tcg::XoriI64 { ret: tmp_4, arg_1: tmp_4, arg_2: (-1).into() },
             Tcg::AndI64 { ret: tmp_4, arg_1: tmp_4, arg_2: v_handler },
             Tcg::ExtactI64 { ret: r_handler, arg: tmp_4, pos: 0, len: 52 },
-            Tcg::OriI64 { ret: r_handler, arg_1: r_handler, arg_2: 1i64 << 52 }, // r_handler = frac
-            Tcg::ExtactI64 { ret: tmp_1, arg: tmp_4, pos: 52, len: 11 },         // tmp_1 = exp
+            Tcg::OriI64 { ret: r_handler, arg_1: r_handler, arg_2: (1i64 << 52).into() }, // r_handler = frac
+            Tcg::ExtactI64 { ret: tmp_1, arg: tmp_4, pos: 52, len: 11 },                  // tmp_1 = exp
             // ---
-            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 1075 },
-            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 63 },
-            Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_2, arg_2: u64::MAX as i64 }, // 1075 - exp < 0 ? 0 : 0xfff
+            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 1075.into() },
+            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 63.into() },
+            Tcg::XoriI64 { ret: tmp_2, arg_1: tmp_2, arg_2: (-1).into() }, // 1075 - exp < 0 ? 0 : 0xfff
             Tcg::AndI64 { ret: tmp_2, arg_1: r_handler, arg_2: tmp_2 },
             Tcg::ShrI64 { ret: tmp_2, arg_1: tmp_2, arg_2: tmp_1 }, // tmp_2 = 1075 - exp < 0 ? 0 : frac >> (1075 - exp)
             // ---
-            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0 }, // tmp_1 = exp - 1076
-            Tcg::SariI64 { ret: tmp_3, arg_1: tmp_1, arg_2: 63 },
-            Tcg::XoriI64 { ret: tmp_3, arg_1: tmp_3, arg_2: u64::MAX as i64 }, // exp - 1076 < 0 ? 0 : 0xfff
+            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0.into() }, // tmp_1 = exp - 1076
+            Tcg::SariI64 { ret: tmp_3, arg_1: tmp_1, arg_2: 63.into() },
+            Tcg::XoriI64 { ret: tmp_3, arg_1: tmp_3, arg_2: (-1).into() }, // exp - 1076 < 0 ? 0 : 0xfff
             Tcg::AndI64 { ret: tmp_3, arg_1: r_handler, arg_2: tmp_3 },
             Tcg::ShlI64 { ret: tmp_1, arg_1: tmp_3, arg_2: tmp_1 },
             // ---
@@ -102,15 +102,15 @@ impl Processor<'_> {
             // ---
             // Out of range
             Tcg::ExtactI64 { ret: tmp_3, arg: tmp_4, pos: 52, len: 11 },
-            Tcg::SubfiI64 { ret: tmp_3, arg_1: tmp_3, arg_2: 1086 },
-            Tcg::SariI64 { ret: tmp_3, arg_1: tmp_3, arg_2: 63 }, // tmp_3 is cond
-            Tcg::XoriI64 { ret: tmp_2, arg_1: r_handler, arg_2: u64::MAX as i64 },
+            Tcg::SubfiI64 { ret: tmp_3, arg_1: tmp_3, arg_2: 1086.into() },
+            Tcg::SariI64 { ret: tmp_3, arg_1: tmp_3, arg_2: 63.into() }, // tmp_3 is cond
+            Tcg::XoriI64 { ret: tmp_2, arg_1: r_handler, arg_2: (-1).into() },
             Tcg::AndI64 { ret: tmp_2, arg_1: tmp_2, arg_2: tmp_3 },
             Tcg::XorI64 { ret: r_handler, arg_1: tmp_2, arg_2: r_handler },
             // ---
             Tcg::ExtactI64 { ret: tmp_1, arg: tmp_4, pos: 52, len: 11 },
-            Tcg::SubfiI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 1022 },
-            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 63 },
+            Tcg::SubfiI64 { ret: tmp_2, arg_1: tmp_1, arg_2: 1022.into() },
+            Tcg::SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 63.into() },
             Tcg::AndI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_2 },
         ]
     }
@@ -127,20 +127,20 @@ impl Processor<'_> {
                         let mut ret = self.fp64_to_i64(v_handler, r_handler);
                         let tmp_1 = self.get_tmp::<1>();
                         ret.extend([
-                            MoviI64 { ret: tmp_1, arg: sign_extend_const(i32::MAX as u64, 32) },
+                            MoviI64 { ret: tmp_1, arg: (i32::MAX as i64).into() },
                             Tcg::SminI64 { ret: r_handler, arg_1: tmp_1, arg_2: r_handler },
-                            MoviI64 { ret: tmp_1, arg: sign_extend_const(i32::MIN as u64, 32) },
+                            MoviI64 { ret: tmp_1, arg: (i32::MIN as i64).into() },
                             Tcg::SmaxI64 { ret: r_handler, arg_1: tmp_1, arg_2: r_handler },
-                            ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
-                            SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                            ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: ((64 - bits) as i64).into() },
+                            SariI64 { ret: r_handler, arg_1: r_handler, arg_2: ((64 - bits) as i64).into() },
                         ]);
                         ret
                     }
                     (FPType(FPType::Double), IntegerType { bits }) if matches!(bits, 33..64) => {
                         let mut ret = self.fp64_to_i64(v_handler, r_handler);
                         ret.extend([
-                            ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
-                            SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                            ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: ((64 - bits) as i64).into() },
+                            SariI64 { ret: r_handler, arg_1: r_handler, arg_2: ((64 - bits) as i64).into() },
                         ]);
                         ret
                     }
@@ -151,12 +151,12 @@ impl Processor<'_> {
                         ret.extend(self.fp64_to_i64(v_handler, r_handler));
                         ret.extend([
                             FcvtSD { ret: v_handler, arg: v_handler },
-                            MoviI64 { ret: tmp_1, arg: sign_extend_const(i32::MAX as u64, 32) },
+                            MoviI64 { ret: tmp_1, arg: (i32::MAX as i64).into() },
                             Tcg::SminI64 { ret: r_handler, arg_1: tmp_1, arg_2: r_handler },
-                            MoviI64 { ret: tmp_1, arg: sign_extend_const(i32::MIN as u64, 32) },
+                            MoviI64 { ret: tmp_1, arg: (i32::MIN as i64).into() },
                             Tcg::SmaxI64 { ret: r_handler, arg_1: tmp_1, arg_2: r_handler },
-                            ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
-                            SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                            ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: ((64 - bits) as i64).into() },
+                            SariI64 { ret: r_handler, arg_1: r_handler, arg_2: ((64 - bits) as i64).into() },
                         ]);
                         ret
                     }
@@ -165,8 +165,8 @@ impl Processor<'_> {
                         ret.extend(self.fp64_to_i64(v_handler, r_handler));
                         ret.extend([
                             FcvtSD { ret: v_handler, arg: v_handler },
-                            ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
-                            SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                            ShliI64 { ret: r_handler, arg_1: r_handler, arg_2: ((64 - bits) as i64).into() },
+                            SariI64 { ret: r_handler, arg_1: r_handler, arg_2: ((64 - bits) as i64).into() },
                         ]);
                         ret
                     }
@@ -183,14 +183,14 @@ impl Processor<'_> {
                 Constant::Float(Float::Double(double)) => match r_ty.as_ref() {
                     IntegerType { bits } => vec![MoviI64 {
                         ret: r_handler,
-                        arg: sign_extend_const(extract_const_i64(*double as i64, *bits) as u64, *bits),
+                        arg: sign_extend_const(extract_const_i64(*double as i64, *bits) as u64, *bits).into(),
                     }],
                     _ => todo!(),
                 },
                 Constant::Float(Float::Single(single)) => match r_ty.as_ref() {
                     IntegerType { bits } => vec![MoviI64 {
                         ret: r_handler,
-                        arg: sign_extend_const(extract_const_i64(*single as i64, *bits) as u64, *bits),
+                        arg: sign_extend_const(extract_const_i64(*single as i64, *bits) as u64, *bits).into(),
                     }],
                     _ => todo!(),
                 },
@@ -212,7 +212,7 @@ impl Processor<'_> {
                         let mut ret = self.fp64_to_u64(v_handler, r_handler);
                         let tmp_1 = self.get_tmp::<1>();
                         ret.extend([
-                            MoviI64 { ret: tmp_1, arg: u32::MAX as i64 },
+                            MoviI64 { ret: tmp_1, arg: (u32::MAX as i64).into() },
                             UminI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_1 },
                             ExtactI64 { ret: r_handler, arg: r_handler, pos: 0, len: *bits },
                         ]);
@@ -230,7 +230,7 @@ impl Processor<'_> {
                         let tmp_1 = self.get_tmp::<1>();
                         ret.extend([
                             FcvtSD { ret: v_handler, arg: v_handler },
-                            MoviI64 { ret: tmp_1, arg: u32::MAX as i64 },
+                            MoviI64 { ret: tmp_1, arg: (u32::MAX as i64).into() },
                             UminI64 { ret: r_handler, arg_1: r_handler, arg_2: tmp_1 },
                             ExtactI64 { ret: r_handler, arg: r_handler, pos: 0, len: *bits },
                         ]);
@@ -256,11 +256,15 @@ impl Processor<'_> {
             }
             ConstantOperand(constant) => match constant.as_ref() {
                 Constant::Float(Float::Double(double)) => match r_ty.as_ref() {
-                    IntegerType { bits } => vec![MoviI64 { ret: r_handler, arg: extract_const_i64(*double as i64, *bits) }],
+                    IntegerType { bits } => {
+                        vec![MoviI64 { ret: r_handler, arg: extract_const_i64(*double as i64, *bits).into() }]
+                    }
                     _ => todo!(),
                 },
                 Constant::Float(Float::Single(single)) => match r_ty.as_ref() {
-                    IntegerType { bits } => vec![MoviI64 { ret: r_handler, arg: extract_const_i64(*single as i64, *bits) }],
+                    IntegerType { bits } => {
+                        vec![MoviI64 { ret: r_handler, arg: extract_const_i64(*single as i64, *bits).into() }]
+                    }
                     _ => todo!(),
                 },
                 _ => todo!(),
@@ -279,25 +283,25 @@ impl Processor<'_> {
                 self.use_variable(v_handler);
                 match (ty.as_ref(), r_ty.as_ref()) {
                     (IntegerType { bits }, FPType(FPType::Double)) if matches!(bits, 0..32) => vec![
-                        ShliI64 { ret: r_handler, arg_1: v_handler, arg_2: (64 - bits) as i64 },
-                        SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                        ShliI64 { ret: r_handler, arg_1: v_handler, arg_2: ((64 - bits) as i64).into() },
+                        SariI64 { ret: r_handler, arg_1: r_handler, arg_2: ((64 - bits) as i64).into() },
                         FcvtDW { ret: r_handler, arg: r_handler },
                     ],
                     (IntegerType { bits }, FPType(FPType::Single)) if matches!(bits, 0..32) => vec![
-                        ShliI64 { ret: r_handler, arg_1: v_handler, arg_2: (64 - bits) as i64 },
-                        SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                        ShliI64 { ret: r_handler, arg_1: v_handler, arg_2: ((64 - bits) as i64).into() },
+                        SariI64 { ret: r_handler, arg_1: r_handler, arg_2: ((64 - bits) as i64).into() },
                         FcvtSW { ret: r_handler, arg: r_handler },
                     ],
                     (IntegerType { bits: 32 }, FPType(FPType::Double)) => vec![FcvtDW { ret: r_handler, arg: v_handler }],
                     (IntegerType { bits: 32 }, FPType(FPType::Single)) => vec![FcvtSW { ret: r_handler, arg: v_handler }],
                     (IntegerType { bits }, FPType(FPType::Double)) if matches!(bits, 33..64) => vec![
-                        ShliI64 { ret: r_handler, arg_1: v_handler, arg_2: (64 - bits) as i64 },
-                        SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                        ShliI64 { ret: r_handler, arg_1: v_handler, arg_2: ((64 - bits) as i64).into() },
+                        SariI64 { ret: r_handler, arg_1: r_handler, arg_2: ((64 - bits) as i64).into() },
                         FcvtDL { ret: r_handler, arg: r_handler },
                     ],
                     (IntegerType { bits }, FPType(FPType::Single)) if matches!(bits, 33..64) => vec![
-                        ShliI64 { ret: r_handler, arg_1: v_handler, arg_2: (64 - bits) as i64 },
-                        SariI64 { ret: r_handler, arg_1: r_handler, arg_2: (64 - bits) as i64 },
+                        ShliI64 { ret: r_handler, arg_1: v_handler, arg_2: ((64 - bits) as i64).into() },
+                        SariI64 { ret: r_handler, arg_1: r_handler, arg_2: ((64 - bits) as i64).into() },
                         FcvtSL { ret: r_handler, arg: r_handler },
                     ],
                     (IntegerType { bits: 64 }, FPType(FPType::Double)) => vec![FcvtDL { ret: r_handler, arg: v_handler }],
@@ -307,8 +311,13 @@ impl Processor<'_> {
             }
             ConstantOperand(constant) => match constant.as_ref() {
                 Constant::Int { bits: 0..=64, value } => match r_ty.as_ref() {
-                    FPType(FPType::Double) => vec![MoviI64 { ret: r_handler, arg: (*value as i64 as f64).to_bits() as i64 }],
-                    FPType(FPType::Single) => vec![MoviI64 { ret: r_handler, arg: (*value as i64 as f32).to_bits() as i64 }],
+                    FPType(FPType::Double) => {
+                        vec![MoviI64 { ret: r_handler, arg: ((*value as i64 as f64).to_bits() as i64).into() }]
+                    }
+                    FPType(FPType::Single) => vec![MoviI64 {
+                        ret: r_handler,
+                        arg: (((*value as i64 as f32).to_bits() as u64 | 0xffff_ffff_0000_0000) as i64).into(),
+                    }],
                     _ => todo!(),
                 },
                 _ => todo!(),
@@ -350,8 +359,11 @@ impl Processor<'_> {
             }
             ConstantOperand(constant) => match constant.as_ref() {
                 Constant::Int { bits: 0..=64, value } => match r_ty {
-                    FPType(FPType::Double) => vec![MoviI64 { ret: r_handler, arg: (*value as f64).to_bits() as i64 }],
-                    FPType(FPType::Single) => vec![MoviI64 { ret: r_handler, arg: (*value as f32).to_bits() as i64 }],
+                    FPType(FPType::Double) => vec![MoviI64 { ret: r_handler, arg: ((*value as f64).to_bits() as i64).into() }],
+                    FPType(FPType::Single) => vec![MoviI64 {
+                        ret: r_handler,
+                        arg: (((*value as f32).to_bits() as u64 | 0xffff_ffff_0000_0000) as i64).into(),
+                    }],
                     _ => todo!(),
                 },
                 _ => todo!(),
@@ -380,10 +392,10 @@ impl Processor<'_> {
             }
             ConstantOperand(constant) => match (constant.as_ref(), ret_bits) {
                 (Constant::Int { bits: _, value }, 0..=32) => {
-                    vec![MoviI32 { ret: ret_handler, arg: (value & (u64::MAX >> (64 - ret_bits))) as i32 }]
+                    vec![MoviI32 { ret: ret_handler, arg: ((value & (u64::MAX >> (64 - ret_bits))) as i32).into() }]
                 }
                 (Constant::Int { bits: _, value }, 33..=64) => {
-                    vec![MoviI64 { ret: ret_handler, arg: (value & (u64::MAX >> (64 - ret_bits))) as i64 }]
+                    vec![MoviI64 { ret: ret_handler, arg: ((value & (u64::MAX >> (64 - ret_bits))) as i64).into() }]
                 }
                 _ => todo!(),
             },
@@ -404,7 +416,9 @@ impl Processor<'_> {
                 }
             }
             ConstantOperand(constant) => match constant.as_ref() {
-                Constant::Int { bits, value } => vec![MoviI64 { ret: ret_handler, arg: extract_const_u64(*value, *bits) }],
+                Constant::Int { bits, value } => {
+                    vec![MoviI64 { ret: ret_handler, arg: extract_const_u64(*value, *bits).into() }]
+                }
                 _ => todo!(),
             },
             _ => todo!(),
@@ -424,17 +438,18 @@ impl Processor<'_> {
                 self.use_variable(v_handler);
                 match ty.as_ref() {
                     IntegerType { bits } => vec![
-                        ShliI64 { ret: ret_handler, arg_1: v_handler, arg_2: (64 - bits) as i64 },
-                        SariI64 { ret: ret_handler, arg_1: ret_handler, arg_2: (64 - bits) as i64 },
+                        ShliI64 { ret: ret_handler, arg_1: v_handler, arg_2: ((64 - bits) as i64).into() },
+                        SariI64 { ret: ret_handler, arg_1: ret_handler, arg_2: ((64 - bits) as i64).into() },
                         ExtactI64 { ret: ret_handler, arg: ret_handler, pos: 0, len: ret_bits },
                     ],
                     _ => todo!(),
                 }
             }
             ConstantOperand(constant) => match constant.as_ref() {
-                Constant::Int { bits, value } => {
-                    vec![MoviI64 { ret: ret_handler, arg: extract_const_i64(sign_extend_const(*value, *bits), ret_bits) }]
-                }
+                Constant::Int { bits, value } => vec![MoviI64 {
+                    ret: ret_handler,
+                    arg: extract_const_i64(sign_extend_const(*value, *bits), ret_bits).into(),
+                }],
                 _ => todo!(),
             },
             _ => todo!(),
@@ -457,7 +472,7 @@ impl Processor<'_> {
             }
             ConstantOperand(constant) => match (constant.as_ref(), r_ty) {
                 (Constant::Float(Float::Single(single)), FPType(FPType::Double)) => {
-                    vec![MoviI64 { ret: ret_handler, arg: (*single as f64).to_bits() as i64 }]
+                    vec![MoviI64 { ret: ret_handler, arg: ((*single as f64).to_bits() as i64).into() }]
                 }
                 _ => todo!(),
             },
@@ -480,9 +495,10 @@ impl Processor<'_> {
                 }
             }
             ConstantOperand(constant) => match (constant.as_ref(), r_ty) {
-                (Constant::Float(Float::Double(double)), FPType(FPType::Single)) => {
-                    vec![MoviI64 { ret: ret_handler, arg: ((*double as f32).to_bits() as u64 | 0xffff_ffff_0000_0000) as i64 }]
-                }
+                (Constant::Float(Float::Double(double)), FPType(FPType::Single)) => vec![MoviI64 {
+                    ret: ret_handler,
+                    arg: (((*double as f32).to_bits() as u64 | 0xffff_ffff_0000_0000) as i64).into(),
+                }],
                 _ => todo!(),
             },
             _ => todo!(),

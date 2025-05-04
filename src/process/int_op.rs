@@ -60,21 +60,21 @@ macro_rules! two_variables {
                         $prc.use_variable(tmp_1);
                         $prc.use_variable(tmp_2);
                         vec![
-                            ShliI64 { ret: tmp_1, arg_1: $l_handler, arg_2: 64 - (*l_bits as i64) },
-                            SariI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 64 - (*l_bits as i64) },
+                            ShliI64 { ret: tmp_1, arg_1: $l_handler, arg_2: (64 - (*l_bits as i64)).into() },
+                            SariI64 { ret: tmp_1, arg_1: tmp_1, arg_2: (64 - (*l_bits as i64)).into() },
                             if $is_shift {
                                 ExtactI64 { ret: tmp_2, arg: $r_handler, pos: 0, len: shift_bits(*r_bits) }
                             } else {
-                                ShliI64 { ret: tmp_2, arg_1: $r_handler, arg_2: 64 - (*r_bits as i64) }
+                                ShliI64 { ret: tmp_2, arg_1: $r_handler, arg_2: (64 - (*r_bits as i64)).into() }
                             },
                             if $is_shift {
                                 PlaceHolder
                             } else {
-                                SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 64 - (*r_bits as i64) }
+                                SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: (64 - (*r_bits as i64)).into() }
                             },
                             $op_64 { ret: $ret_handler, arg_1: tmp_1, arg_2: tmp_2 },
-                            ShliI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: 64 - ($ret_bits as i64) },
-                            SariI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: 64 - ($ret_bits as i64) },
+                            ShliI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: (64 - ($ret_bits as i64)).into() },
+                            SariI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: (64 - ($ret_bits as i64)).into() },
                         ]
                     }
                     (64, _) => vec![$op_64 { ret: $ret_handler, arg_1: $l_handler, arg_2: $r_handler }],
@@ -102,7 +102,7 @@ macro_rules! vc_imm_tcg {
                         $prc.use_variable(tmp_1);
                         vec![
                             ExtactI64 { ret: tmp_1, arg: $v_handler, pos: 0, len: *v_bits },
-                            $op_64_imm { ret: $ret_handler, arg_1: tmp_1, arg_2: *value as i64 },
+                            $op_64_imm { ret: $ret_handler, arg_1: tmp_1, arg_2: (*value as i64).into() },
                             ExtactI64 { ret: $ret_handler, arg: $ret_handler, pos: 0, len: $ret_bits },
                         ]
                     }
@@ -110,14 +110,14 @@ macro_rules! vc_imm_tcg {
                         let tmp_1 = $prc.get_tmp::<1>();
                         $prc.use_variable(tmp_1);
                         vec![
-                            ShliI64 { ret: tmp_1, arg_1: $v_handler, arg_2: 64 - (*v_bits as i64) },
-                            SariI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 64 - (*v_bits as i64) },
-                            $op_64_imm { ret: $ret_handler, arg_1: tmp_1, arg_2: sign_extend_const(*value, *c_bits) },
-                            ShliI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: 64 - ($ret_bits as i64) },
-                            SariI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: 64 - ($ret_bits as i64) },
+                            ShliI64 { ret: tmp_1, arg_1: $v_handler, arg_2: (64 - (*v_bits as i64)).into() },
+                            SariI64 { ret: tmp_1, arg_1: tmp_1, arg_2: (64 - (*v_bits as i64)).into() },
+                            $op_64_imm { ret: $ret_handler, arg_1: tmp_1, arg_2: sign_extend_const(*value, *c_bits).into() },
+                            ShliI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: (64 - ($ret_bits as i64)).into() },
+                            SariI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: (64 - ($ret_bits as i64)).into() },
                         ]
                     }
-                    (64, _) => vec![$op_64_imm { ret: $ret_handler, arg_1: $v_handler, arg_2: *value as i64 }],
+                    (64, _) => vec![$op_64_imm { ret: $ret_handler, arg_1: $v_handler, arg_2: (*value as i64).into() }],
                     _ => todo!(),
                 }
             }
@@ -153,9 +153,9 @@ macro_rules! const_variable {
                         $prc.use_variable(tmp_2);
                         vec![
                             if $is_shift && !$const_first {
-                                MoviI64 { ret: tmp_1, arg: extract_const_u64(*value, shift_bits(*v_bits)) }
+                                MoviI64 { ret: tmp_1, arg: extract_const_u64(*value, shift_bits(*v_bits)).into() }
                             } else {
-                                MoviI64 { ret: tmp_1, arg: *value as i64 }
+                                MoviI64 { ret: tmp_1, arg: (*value as i64).into() }
                             },
                             if $is_shift && $const_first {
                                 ExtactI64 { ret: tmp_2, arg: $v_handler, pos: 0, len: shift_bits(*v_bits) }
@@ -170,27 +170,27 @@ macro_rules! const_variable {
                         $prc.use_variable(tmp_2);
                         vec![
                             if $is_shift && !$const_first {
-                                MoviI64 { ret: tmp_1, arg: extract_const_u64(*value, shift_bits(*v_bits)) }
+                                MoviI64 { ret: tmp_1, arg: extract_const_u64(*value, shift_bits(*v_bits)).into() }
                             } else {
-                                MoviI64 { ret: tmp_1, arg: sign_extend_const(*value, *c_bits) }
+                                MoviI64 { ret: tmp_1, arg: sign_extend_const(*value, *c_bits).into() }
                             },
                             if $is_shift && $const_first {
                                 ExtactI64 { ret: tmp_2, arg: $v_handler, pos: 0, len: shift_bits(*v_bits) }
                             } else {
-                                ShliI64 { ret: tmp_2, arg_1: $v_handler, arg_2: 64 - (*v_bits as i64) }
+                                ShliI64 { ret: tmp_2, arg_1: $v_handler, arg_2: (64 - (*v_bits as i64)).into() }
                             },
                             if $is_shift && $const_first {
                                 PlaceHolder
                             } else {
-                                SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: 64 - (*v_bits as i64) }
+                                SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: (64 - (*v_bits as i64)).into() }
                             },
                             cv_helper!($const_first, $op_64, $ret_handler, tmp_1, tmp_2),
-                            ShliI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: 64 - ($ret_bits as i64) },
-                            SariI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: 64 - ($ret_bits as i64) },
+                            ShliI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: (64 - ($ret_bits as i64)).into() },
+                            SariI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: (64 - ($ret_bits as i64)).into() },
                         ]
                     }
                     (64, _) => vec![
-                        MoviI64 { ret: tmp_1, arg: *value as i64 },
+                        MoviI64 { ret: tmp_1, arg: (*value as i64).into() },
                         cv_helper!($const_first, $op_64, $ret_handler, tmp_1, $v_handler),
                     ],
                     _ => todo!(),
@@ -209,15 +209,15 @@ macro_rules! two_consts {
                 if *l_bits == *r_bits && (*l_bits == $ret_bits || $is_bool && $ret_bits == 1) =>
             {
                 match (l_bits, $sign) {
-                    (0..64, false) => vec![MoviI64 { ret: $ret_handler, arg: extract_const_u64((l_value $op r_value) as u64, $ret_bits) }],
+                    (0..64, false) => vec![MoviI64 { ret: $ret_handler, arg: extract_const_u64((l_value $op r_value) as u64, $ret_bits).into() }],
                     (0..64, true) => vec![MoviI64 {
                         ret: $ret_handler,
                         arg: sign_extend_const(
                             (sign_extend_const(*l_value, $ret_bits) $op sign_extend_const(*r_value, $ret_bits)) as u64,
                             $ret_bits,
-                        ),
+                        ).into(),
                     }],
-                    (64, _) => vec![MoviI64 { ret: $ret_handler, arg: (l_value $op r_value) as i64 }],
+                    (64, _) => vec![MoviI64 { ret: $ret_handler, arg: ((l_value $op r_value) as i64).into() }],
                     _ => todo!(),
                 }
             }

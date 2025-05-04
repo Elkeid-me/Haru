@@ -22,11 +22,11 @@ macro_rules! value_const {
         let v_ty = $processor.symbol_table.borrow().get(&$v_handler).unwrap().clone();
         match (v_ty.as_ref(), $constant.as_ref()) {
             (FPType(FPType::Double), Constant::Float(Float::Double(double))) => vec![
-                MoviI64 { ret: $ret_handler, arg: double.to_bits() as i64 },
+                MoviI64 { ret: $ret_handler, arg: (double.to_bits() as i64).into() },
                 $op_64 { ret: $ret_handler, arg_1: $v_handler, arg_2: $ret_handler },
             ],
             (FPType(FPType::Single), Constant::Float(Float::Single(single))) => vec![
-                MoviI64 { ret: $ret_handler, arg: (single.to_bits() as u64 | 0xffff_ffff_0000_0000) as i64 },
+                MoviI64 { ret: $ret_handler, arg: ((single.to_bits() as u64 | 0xffff_ffff_0000_0000) as i64).into() },
                 $op_32 { ret: $ret_handler, arg_1: $v_handler, arg_2: $ret_handler },
             ],
             _ => todo!(),
@@ -40,11 +40,11 @@ macro_rules! const_value {
         let v_ty = $processor.symbol_table.borrow().get(&$v_handler).unwrap().clone();
         match ($constant.as_ref(), v_ty.as_ref()) {
             (Constant::Float(Float::Double(double)), FPType(FPType::Double)) => vec![
-                MoviI64 { ret: $ret_handler, arg: double.to_bits() as i64 },
+                MoviI64 { ret: $ret_handler, arg: (double.to_bits() as i64).into() },
                 $op_64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: $v_handler },
             ],
             (Constant::Float(Float::Single(single)), FPType(FPType::Single)) => vec![
-                MoviI64 { ret: $ret_handler, arg: (single.to_bits() as u64 | 0xffff_ffff_0000_0000) as i64 },
+                MoviI64 { ret: $ret_handler, arg: ((single.to_bits() as u64 | 0xffff_ffff_0000_0000) as i64).into() },
                 $op_32 { ret: $ret_handler, arg_1: $ret_handler, arg_2: $v_handler },
             ],
             _ => todo!(),
@@ -59,11 +59,11 @@ macro_rules! two_const {
             (
                 Constant::Float(Float::Double(l)),
                 Constant::Float(Float::Double(r)),
-            ) => vec![MoviI64 { ret: $ret_handler, arg: (l $op r).to_bits() as i64 }],
+            ) => vec![MoviI64 { ret: $ret_handler, arg: ((l $op r).to_bits() as i64).into() }],
             (
                 Constant::Float(Float::Single(l)),
                 Constant::Float(Float::Single(r)),
-            ) => vec![MoviI64 { ret: $ret_handler, arg: ((l $op r).to_bits() as u64 | 0xffff_ffff_0000_0000) as i64 }],
+            ) => vec![MoviI64 { ret: $ret_handler, arg: (((l $op r).to_bits() as u64 | 0xffff_ffff_0000_0000) as i64).into() }],
             _ => todo!(),
         }}
     };
@@ -131,14 +131,25 @@ impl Processor<'_> {
                 let arg_handler = self.name_to_handler(name);
                 self.use_variable(arg_handler);
                 match ty.as_ref() {
-                    FPType(FPType::Double) => vec![XoriI64 { ret: ret_handler, arg_1: arg_handler, arg_2: 1i64 << 63 }],
-                    FPType(FPType::Single) => vec![XoriI64 { ret: ret_handler, arg_1: arg_handler, arg_2: 1i64 << 31 }],
+                    FPType(FPType::Double) => {
+                        vec![XoriI64 { ret: ret_handler, arg_1: arg_handler, arg_2: (1i64 << 63).into() }]
+                    }
+                    FPType(FPType::Single) => {
+                        vec![XoriI64 { ret: ret_handler, arg_1: arg_handler, arg_2: (1i64 << 31).into() }]
+                    }
                     _ => todo!(),
                 }
             }
             ConstantOperand(constant) => match constant.as_ref() {
-                Constant::Float(Float::Double(double)) => vec![MoviI64 { ret: ret_handler, arg: (-double).to_bits() as i64 }],
-                Constant::Float(Float::Single(single)) => vec![MoviI64 { ret: ret_handler, arg: (-single).to_bits() as i64 }],
+                Constant::Float(Float::Double(double)) => {
+                    vec![MoviI64 { ret: ret_handler, arg: ((-double).to_bits() as i64).into() }]
+                }
+                Constant::Float(Float::Single(single)) => {
+                    vec![MoviI64 {
+                        ret: ret_handler,
+                        arg: (((-single).to_bits() as u64 | 0xffff_ffff_0000_0000) as i64).into(),
+                    }]
+                }
                 _ => todo!(),
             },
             _ => todo!(),
