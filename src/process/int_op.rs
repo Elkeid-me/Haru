@@ -73,8 +73,16 @@ macro_rules! two_variables {
                                 SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: (64 - (*r_bits as i64)).into() }
                             },
                             $op_64 { ret: $ret_handler, arg_1: tmp_1, arg_2: tmp_2 },
-                            ShliI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: (64 - ($ret_bits as i64)).into() },
-                            SariI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: (64 - ($ret_bits as i64)).into() },
+                            if $is_bool {
+                                PlaceHolder
+                            } else {
+                                ShliI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: (64 - ($ret_bits as i64)).into() }
+                            },
+                            if $is_bool {
+                                PlaceHolder
+                            } else {
+                                SariI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: (64 - ($ret_bits as i64)).into() }
+                            },
                         ]
                     }
                     (64, _) => vec![$op_64 { ret: $ret_handler, arg_1: $l_handler, arg_2: $r_handler }],
@@ -185,8 +193,16 @@ macro_rules! const_variable {
                                 SariI64 { ret: tmp_2, arg_1: tmp_2, arg_2: (64 - (*v_bits as i64)).into() }
                             },
                             cv_helper!($const_first, $op_64, $ret_handler, tmp_1, tmp_2),
-                            ShliI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: (64 - ($ret_bits as i64)).into() },
-                            SariI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: (64 - ($ret_bits as i64)).into() },
+                            if $is_bool {
+                                PlaceHolder
+                            } else {
+                                ShliI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: (64 - ($ret_bits as i64)).into() }
+                            },
+                            if $is_bool {
+                                PlaceHolder
+                            } else {
+                                SariI64 { ret: $ret_handler, arg_1: $ret_handler, arg_2: (64 - ($ret_bits as i64)).into() }
+                            },
                         ]
                     }
                     (64, _) => vec![
@@ -209,13 +225,21 @@ macro_rules! two_consts {
                 if *l_bits == *r_bits && (*l_bits == $ret_bits || $is_bool && $ret_bits == 1) =>
             {
                 match (l_bits, $sign) {
-                    (0..64, false) => vec![MoviI64 { ret: $ret_handler, arg: extract_const_u64((l_value $op r_value) as u64, $ret_bits).into() }],
+                    (0..64, false) => vec![MoviI64 {
+                        ret: $ret_handler,
+                        arg: extract_const_u64((l_value $op r_value) as u64, $ret_bits).into(),
+                    }],
                     (0..64, true) => vec![MoviI64 {
                         ret: $ret_handler,
-                        arg: sign_extend_const(
-                            (sign_extend_const(*l_value, $ret_bits) $op sign_extend_const(*r_value, $ret_bits)) as u64,
-                            $ret_bits,
-                        ).into(),
+                        arg: if $is_bool {
+                            ((sign_extend_const(*l_value, $ret_bits) $op sign_extend_const(*r_value, $ret_bits)) as i64).into()
+                        } else {
+                            sign_extend_const(
+                                (sign_extend_const(*l_value, $ret_bits) $op sign_extend_const(*r_value, $ret_bits)) as u64,
+                                $ret_bits,
+                            )
+                            .into()
+                        },
                     }],
                     (64, _) => vec![MoviI64 { ret: $ret_handler, arg: ((l_value $op r_value) as i64).into() }],
                     _ => todo!(),
