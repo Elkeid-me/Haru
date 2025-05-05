@@ -67,7 +67,7 @@ defmodule GenTest do
   defp used_paras({_f, x, y}), do: MapSet.union(used_paras(x), used_paras(y))
   defp used_paras(_), do: MapSet.new()
 
-  defp random_type(), do: [random(@int_type), random(@int_type), random(@float_type)] |> random()
+  defp random_type(), do: [random(@int_type), random(@float_type), random(@float_type)] |> random()
 
   def print_function({{exp_tree, paras, type_spec}, index}) do
     type = random_type()
@@ -102,8 +102,10 @@ args =
   |> elem(0)
   |> Map.new()
 
-macro_file = args |> Map.get(:macro) |> File.open!([:write, :utf8])
-no_macro_file = args |> Map.get(:no_macro) |> File.open!([:write, :utf8])
+macro_file = File.open!(Map.get(args, :macro) <> "_1.c", [:write, :utf8])
+no_macro_file = File.open!(Map.get(args, :no_macro) <> "_1.c", [:write, :utf8])
+macro_file_2 = File.open!(Map.get(args, :macro) <> "_2.c", [:write, :utf8])
+no_macro_file_2 = File.open!(Map.get(args, :no_macro) <> "_2.c", [:write, :utf8])
 
 random_int = :rand.uniform(114_514_810)
 random_float = :rand.uniform() * 114_514_810
@@ -114,9 +116,22 @@ for e_1 <- paras, e_2 <- paras, e_3 <- paras do
   [e_1, e_2, e_3]
 end
 |> flat_map(&GenTest.gen_func/1)
+|> Enum.shuffle()
+|> Enum.take(500)
 |> with_index()
 |> map(&GenTest.print_function/1)
 |> each(fn {macro, no_macro} ->
   IO.puts(macro_file, macro)
   IO.puts(no_macro_file, no_macro)
+end)
+
+[:a, :b, :c, :a, :c]
+|> GenTest.gen_func()
+|> Enum.shuffle()
+|> Enum.take(100)
+|> with_index()
+|> map(&GenTest.print_function/1)
+|> each(fn {macro, no_macro} ->
+  IO.puts(macro_file_2, macro)
+  IO.puts(no_macro_file_2, no_macro)
 end)

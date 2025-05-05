@@ -48,18 +48,4 @@ Elixir 脚本，生成测试点的妙妙工具。
 elixir gen_test.exs --macro <path_1> --no-macro <path_2>
 ```
 
-它会在 `<path_1>` 生成：
-
-```c
-#ifdef use_f_0
-[[gnu::noinline]] unsigned int f_0(float a, float a, float a) { return (a) + ((a) + (a)); }
-#endif
-......
-```
-
-而在 `<path_2>` 生成：
-
-```c
-[[gnu::noinline]] unsigned int f_0(float a, float a, float a) { return (a) + ((a) + (a)); }
-......
-```
+会在 `<path_1>_1.c`、`<path_2>_1.c`、`<path_1>_2.c` 和 `<path_2>_2.c` 生成相应的测试点。
