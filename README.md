@@ -1,5 +1,7 @@
 # Haru
 
+*Haru* = ***H**yperspace **A**nd **R**elative **U**niverse*。
+
 从 LLVM IR 自动生成 QEMU Patch 的小工具。
 
 ## 在 Ubuntu 24.04 上构建

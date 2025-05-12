@@ -89,7 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 args_code.push(int_arg_code);
                 int_arg_code += 1;
             }
-            llvm_ir::Type::IntegerType { bits: 0..=64 } => {
+            llvm_ir::Type::IntegerType { bits: 33..=64 } => {
                 if processor.used.borrow().contains(handler) {
                     writeln!(f, "#ifdef TARGET_RISCV32")?;
                     writeln!(f, "TCGv_i64 val_{handler} = get_gpr_pair(ctx, a->rs{arg_cnt}, EXT_NONE);")?;
