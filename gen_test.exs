@@ -26,15 +26,15 @@ defmodule GenTest do
       |> map(fn {l, r} -> {exp_tree(l), exp_tree(r)} end)
       |> flat_map(fn {l, r} -> for left <- l, right <- r, fun <- @op, do: {fun, left, right} end)
 
-  defp transform(x, type_spec) when is_atom(x),
+  defp transform_impl(x, type_spec) when is_atom(x),
     do: if(Map.get(type_spec, x) in @float_type, do: {x, :float}, else: {x, :int})
 
-  defp transform(x, _type_spec) when is_float(x), do: {{random(@float_type), x}, :float}
-  defp transform(x, _type_spec) when is_integer(x), do: {{random(@int_type), x}, :int}
+  defp transform_impl(x, _type_spec) when is_float(x), do: {{random(@float_type), x}, :float}
+  defp transform_impl(x, _type_spec) when is_integer(x), do: {{random(@int_type), x}, :int}
 
-  defp transform({f, x, y}, type_spec) do
-    {x_trans, x_trans_type} = transform(x, type_spec)
-    {y_trans, y_trans_type} = transform(y, type_spec)
+  defp transform_impl({f, x, y}, type_spec) do
+    {x_trans, x_trans_type} = transform_impl(x, type_spec)
+    {y_trans, y_trans_type} = transform_impl(y, type_spec)
 
     if f in @int_op do
       case {x_trans_type, y_trans_type} do
@@ -58,6 +58,11 @@ defmodule GenTest do
     end
   end
 
+  defp transform(exp) do
+    type_spec = %{a: random_type(), b: random_type(), c: random_type()}
+    {transform_impl(exp, type_spec), type_spec}
+  end
+
   defp to_str(x) when is_atom(x) or is_float(x) or is_integer(x), do: "#{x}"
   defp to_str({f, x}), do: "(#{f})(#{to_str(x)})"
   defp to_str({f, x, y}), do: "(#{to_str(x)}) #{f} (#{to_str(y)})"
@@ -67,7 +72,8 @@ defmodule GenTest do
   defp used_paras({_f, x, y}), do: MapSet.union(used_paras(x), used_paras(y))
   defp used_paras(_), do: MapSet.new()
 
-  defp random_type(), do: [random(@int_type), random(@float_type), random(@float_type)] |> random()
+  defp random_type(),
+    do: [random(@int_type), random(@float_type), random(@float_type)] |> random()
 
   def print_function({{exp_tree, paras, type_spec}, index}) do
     type = random_type()
@@ -87,12 +93,10 @@ defmodule GenTest do
   end
 
   def gen_func(paras) do
-    type_spec = %{a: random_type(), b: random_type(), c: random_type()}
-
     paras
     |> exp_tree()
-    |> map(&transform(&1, type_spec))
-    |> map(fn exp_tree -> {elem(exp_tree, 0), paras, type_spec} end)
+    |> map(&transform(&1))
+    |> map(fn {exp_tree, type_spec} -> {elem(exp_tree, 0), paras, type_spec} end)
   end
 end
 
@@ -125,10 +129,10 @@ end
   IO.puts(no_macro_file, no_macro)
 end)
 
-[:a, :b, :c, :a, :c]
+[:a, :b, :c, :a, :b, :c]
 |> GenTest.gen_func()
 |> Enum.shuffle()
-|> Enum.take(100)
+|> Enum.take(1000)
 |> with_index()
 |> map(&GenTest.print_function/1)
 |> each(fn {macro, no_macro} ->
