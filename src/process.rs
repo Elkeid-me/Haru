@@ -163,12 +163,14 @@ impl<'a> Processor<'a> {
 
     #[inline]
     pub fn get_tmp<const N: usize>(&self) -> Handler {
-        if matches!(self.tmps.borrow()[N - 1].as_ref(), None) {
+        if let Some(handler) = self.tmps.borrow()[N - 1].as_ref() {
+            *handler
+        } else {
             let new_handler = self.new_handler();
             self.tmps.borrow_mut()[N - 1] = Some(new_handler);
             self.symbol_table.borrow_mut().insert(new_handler, Types::i64(&self.module.types));
+            new_handler
         }
-        self.tmps.borrow()[N - 1].unwrap()
     }
 
     #[inline]

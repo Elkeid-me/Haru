@@ -26,7 +26,7 @@ impl Processor<'_> {
             Tcg::AndI64 { ret: tmp_2, arg_1: r_handler, arg_2: tmp_2 },
             Tcg::ShrI64 { ret: tmp_2, arg_1: tmp_2, arg_2: tmp_1 }, // tmp_2 = 1075 - exp < 0 ? 0 : frac >> (1075 - exp)
             // ---
-            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0.into() }, // tmp_1 = exp - 1076
+            Tcg::SubfiI64 { ret: tmp_1, arg_1: tmp_1, arg_2: 0.into() }, // tmp_1 = exp - 1075
             Tcg::SariI64 { ret: tmp_3, arg_1: tmp_1, arg_2: 63.into() },
             Tcg::XoriI64 { ret: tmp_3, arg_1: tmp_3, arg_2: (-1).into() },
             Tcg::AndI64 { ret: tmp_3, arg_1: r_handler, arg_2: tmp_3 },
